@@ -116,3 +116,87 @@ class UserCRUD():
             'status': 200,
             'message': 'OK'
         }
+
+
+class BookCRUD():
+    def setUp(func) -> None:
+        def _wrapper(*args, **kwargs):
+            engine = create_engine("postgresql+psycopg2://postgres:5432@localhost/library_db")
+            session = sessionmaker(bind=engine)
+            kwargs['session'] = session
+            result = func(*args, **kwargs)
+            session.commit()
+            session.close()
+            return result
+        return _wrapper
+    
+    
+    @setUp
+    def create_user(meta_model: schema, model: schema, *args, **kwargs):
+        session = kwargs['session']
+        if meta_model.user_type != 'Librarian':
+            return {
+                'status': 403,
+                'message': 'Access denied.'
+            }
+        session.add(model)
+        return {
+            'status': 200,
+            'message': 'OK'
+        }
+
+    @setUp
+    def get_user_by_email(meta_model: schema, email: str, *args, **kwargs):
+        session = kwargs['session']
+        if meta_model.user_type != 'Librarian':
+            return {
+                'status': 403,
+                'message': 'Access denied.'
+            }
+        result = session.query(model.BaseUser).filter(model.BaseUser.email == email).first()
+        if result:
+            return {
+                'status': 200,
+                'message': 'OK',
+                'body': result
+            }
+        else:
+            return {
+                'status': 500,
+                'message': 'User not found.',
+                'body': None
+            }
+
+    @setUp
+    def update_user_by_email(meta_model: schema, email: str, model: schema, *args, **kwargs):
+        session = kwargs['session']
+        if meta_model.user_type != 'Librarian':
+            return {
+                'status': 403,
+                'message': 'Access denied.'
+            }
+        user = UserCRUD.get_user_by_email(meta_model, email)
+        if user['status'] != 200:
+            session.add(model)
+            return user
+        return UserCRUD.create_user(meta_model, model)
+
+    @setUp
+    def delete_user_by_email(meta_model: schema, email:schema, *args, **kwargs):
+        session = kwargs['session']
+        if meta_model.user_type != 'Librarian':
+            return {
+                'status': 403,
+                'message': 'Access denied.'
+            }
+        result = session.query(model.BaseUser).filter(model.BaseUser.email == email).first()
+        if not result:
+            return {
+                'status': 500,
+                'message': 'User not found.',
+            }
+        session.delete(result)
+        return {
+            'status': 200,
+            'message': 'OK'
+        }
