@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pot
+*.log
+*.py[cod] 
+*$py.class
+
+#Enviorement file
+.env
+
+# Backup files
+*.bak
+
+# Python venv
+*venv*/
+
+# VS Code
+.vscode/
+.history
+
+# Pycahrm
+.idea/ 
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Sublime Text # 
+*.tmlanguage.cache 
+*.tmPreferences.cache 
+*.stTheme.cache 
+*.sublime-workspace 
+*.sublime-project
+
+#Database
+*.sqlite3
