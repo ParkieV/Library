@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 
 import logging
+import uvicorn
 
+from backend.routes import router
+from backend.db.db import init_db as inicialization_database
 
 
 app = FastAPI()
@@ -25,4 +28,5 @@ async def root():
 
 
 if __name__ == '__main__':
+    inicialization_database()
     uvicorn.run(app, host="0.0.0.0", port=8000)

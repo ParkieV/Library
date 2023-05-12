@@ -1,21 +1,23 @@
-from pydantic import BaseModel
-from datetime import datetime
-from typing import List
+from pydantic import BaseModel, EmailStr
+from datetime import date
 
 class User(BaseModel):
+    id: int
     name: str
     surname: str
-    user_type: str
-    email: str
+    last_name: str | None
+    email: EmailStr
     password: str
-    reserved_books: List[int]
-    featured_books: List[int]
+    user_type: str
+    book_id_taken: int
+    reserved_book_id: int
 
 
 class Book(BaseModel):
-    name: str
-    author: str
-    src_link: str
-    id_reserve: int | None
-    start_reserve: datetime
-    finish_reserve: datetime
+    id: int
+    title: str
+    authors: str
+    user_id_taken: int
+    user_reserved_id: int
+    date_start_use: date
+    date_finish_use: date
