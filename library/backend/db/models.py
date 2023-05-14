@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, ARRAY, Null
 from sqlalchemy.orm import declarative_base, relationship
 

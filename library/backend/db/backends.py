@@ -1,9 +1,15 @@
 import re
+import json
 
-from sqlalchemy import create_engine, update
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, update, text, CursorResult
+from pydantic import EmailStr
+from fastapi import status
+from typing import List
+from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
-from backend.db.schema import User, Book
+from backend.db.schema import User, Book, ModelAuth
 from backend.db.models import Users, Books
 from backend.db.settings import DBSettings
 
@@ -13,7 +19,7 @@ class UserMethods():
         def _wrapper(*args, **kwargs):
             settings = DBSettings()
             engine = create_engine(f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}")
-            session = sessionmaker(bind=engine)
+            session = Session(bind=engine)
             kwargs['session'] = session
             result = func(*args, **kwargs)
             session.commit()
@@ -22,37 +28,35 @@ class UserMethods():
         return _wrapper
     
     @staticmethod
-    def _email_validation(email:str) -> bool:
+    def _email_validation(email: EmailStr) -> bool:
         email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
         return re.fullmatch(email_regex, email)
     
     @staticmethod
-    def _auth_validation(email: str, password: str) -> bool:
+    def _auth_validation(email: EmailStr, password: str) -> bool:
         if not UserMethods._email_validation(email):
-            return False
-        password_regex = re.compile('^(?=\S{6,}$)(?=.*?\d)(?=.*?[a-z])(?=.*?[A-Z])(?=.*?[^A-Za-z\s0-9])')
-        if not re.fullmatch(password_regex, password):
+            print("Invalid email")
             return False
         return True
     
     @setUp
-    def get_user_by_email(email: str, *args, **kwargs) -> User | None:
+    def get_user_by_email(email: EmailStr, *args, **kwargs) -> User | None:
         session = kwargs["session"]
         if not UserMethods._email_validation(email):
             return {
                 'status': 500,
-                'message': 'Invalid email.'
+                "details": 'Invalid email.'
             }
         result = session.query(Users).filter(Users.email == email).first()
         if result:
             return {
                 'status': 200,
-                'message': 'OK',
+                "details": 'OK',
                 'body': result
             }
         return {
             'status': 500,
-            'message': 'User not found.',
+            "details": 'User not found.',
             'body': None
         }
     
@@ -62,23 +66,23 @@ class UserMethods():
         if not UserMethods._auth_validation(model.email, model.password):
             return {
                 'status': 500,
-                'message': 'Invalid email or password.'
+                "details": 'Invalid email or password.'
             }
         if UserMethods.get_user_by_email(model.email)['status'] != 500:
             return {
                 'status': 500,
-                'message': 'User already exists.'
+                "details": 'User already exists.'
             }
         try:
             session.add(model)
         except Exception as err:
             return {
                 'status': 500,
-                'message': err + " . Operation is unavailable."
+                "details": err + " . Operation is unavailable."
             }
         return {
             'status': 200,
-            'message': 'OK'
+            "details": 'OK'
         }
 
     @setUp
@@ -88,12 +92,12 @@ class UserMethods():
         if result:
             return {
                 'status': 200,
-                'message': 'OK',
+                "details": 'OK',
                 'body': result
             }
         return {
             'status': 500,
-            'message': 'User not found.',
+            "details": 'User not found.',
             'body': None
         }
 
@@ -113,17 +117,18 @@ class UserMethods():
             result = session.execute(stmt)
             return {
                 'status': 200,
-                'message': 'OK',
+                "details": 'OK',
                 'body': result
             }
         except Exception as err:
             return {
                 'status': 500,
-                'message': err + " . Operation is unavailable.",
+                "details": err + " . Operation is unavailable.",
                 'body': None
             }
 
-    def delete_user_by_id(id:int, *args, **kwargs) -> dict:
+    @setUp
+    def delete_user_by_id(id: int, *args, **kwargs) -> dict:
         session = kwargs["session"]
         user = UserMethods.get_user_by_id(id)
         if user['status'] != 200:
@@ -133,94 +138,165 @@ class UserMethods():
             session.delete(request)
             return {
                 'status': 200,
-                'message': 'OK',
+                "details": 'OK',
             }
         except Exception as err:
             return {
                 'status': 500,
-                'message': err + " . Operation is unavailable."
+                "details": err + " . Operation is unavailable."
             }
+    
+    @setUp
+    def get_user_by_email_password(model: ModelAuth, *args, **kwargs) -> JSONResponse:
+        session = kwargs["session"]
+        print(model.email, model.password)
+        if not UserMethods._auth_validation(model.email, model.password):
+            return JSONResponse(
+                status_code = 400,
+                content = {
+                    "details": "Invalid email or password"
+                }
+            )
+        try:
+            query = text(
+                """
+                SELECT *
+                FROM users
+                WHERE email = :user_email
+                AND password = :user_password;
+            """)
+            result = session.execute(query, 
+                                     {"user_email": model.email, "user_password": model.password}).mappings().all()
+            if len(result) != 1:
+                return JSONResponse(
+                    status_code = 404,
+                    content = {
+                    "details": "User not found"
+                    }
+                )
+            return JSONResponse(
+                content={
+                    "body": CursorResultDict(result)
+                }
+            )
+        except Exception as err:
+            return JSONResponse(
+                status_code = 500,
+                content = {
+                "details": str(err) + ". Operation is unavailable"
+                }
+            )
 
 
 class BookMethods():
     def setUp(func) -> None:
         def _wrapper(*args, **kwargs):
-            engine = create_engine("postgresql+psycopg2://postgres:5432@localhost/library_db")
-            session = sessionmaker(bind=engine)
+            settings = DBSettings()
+            engine = create_engine(f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}")
+            session = Session(bind=engine)
             kwargs['session'] = session
             result = func(*args, **kwargs)
-            session.commit()
             session.close()
             return result
         return _wrapper
     
     @setUp
-    def search_book_by_title(title: str, *args, **kwargs) -> dict:
+    def search_book_by_title(book_title: str, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
-        result = Books.query.filter(Books.title.match(title)).limit(10)
-        try:
-            result = session.execute(result)
-            if not result:
-                return {
-                    'status': 500,
-                    'message': 'Book not found.',
-                    'body': None
+        try: 
+            query = text(
+                """
+                SELECT b.id, b.title, b.authors
+                FROM books as b 
+                WHERE title LIKE :new_title;
+            """)
+            result = session.execute(query, {"new_title": "%" + book_title + "%"}).mappings().all()
+            result_dict = CursorResultDict(result)
+            if result_dict == []:
+                return JSONResponse(
+                    status_code = 404,
+                    content={
+                        "details": 'Book not found'
+                    }
+                    
+                )
+            return JSONResponse(
+                content={
+                    'body': result_dict
                 }
-            return {
-                'status': 200,
-                'message': 'OK',
-                'body': result
-            }
+            )
         except Exception as err:
-            return {
-                'status': 500,
-                'message': err + " . Operation is unavailable.",
-                'body': None
-            }
+            return JSONResponse(
+                status_code= 500,
+                content={
+                  "details": str(err) + " . Operation is unavailable.",  
+                }
+            )
 
     @setUp
-    def create_book(model: Book, *args, **kwargs) -> dict:
+    def create_book(model: Book, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
         if not model.user_id_taken:
-            if UserMethods.get_user_by_id(model.user_id_taken)['status'] != 200:
-                return {
-                    'status': 500,
-                    'message': 'Uncorrect values.'
-                }
+            if UserMethods.get_user_by_id(model.user_id_taken).status_code != 200:
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "details": 'Uncorrect values.'
+                    }
+                )
         if not model.user_reserved_id:
-            if UserMethods.get_user_by_id(model.user_reserved_id)['status'] != 200:
-                return {
-                    'status': 500,
-                    'message': 'Uncorrect values.'
-                }
+            if UserMethods.get_user_by_id(model.user_reserved_id).status_code != 200:
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "details": 'Uncorrect values.'
+                    }
+                )
         try:
-            session.add(model)
+            query = text("""
+                INSERT INTO books 
+                (title, authors, user_id_taken, user_reserved_id, date_start_use, date_finish_use)
+                VALUES(:title, :autors, :user_id_taken, :user_reserved_id, 
+                :date_start_use, :date_finish_use)
+            """)
+            session.execute(query, {
+                "tit"
+            })
         except Exception as err:
-            return {
-                'status': 500,
-                'message': err + " . Operation is unavailable."
+            return JSONResponse(
+                status_code= 500,
+                content={
+                  "details": str(err) + " . Operation is unavailable.",  
+                }
+            )
+        return JSONResponse(
+            content={
+                "details": 'OK'
             }
-        return {
-            'status': 200,
-            'message': 'OK'
-        }
+        )
 
     @setUp
     def get_book_by_id(id: int, *args, **kwargs) -> dict:
         session = kwargs['session']
-        result = session.query(Books).filter(Books.id == id).first()
+        query = text("""
+            SELECT *
+            FROM books
+            WHERE id = :book_id;
+        """)
+        result = session.execute(query, {"book_id": id}).mappings().first()
         if result:
-            return {
-                'status': 200,
-                'message': 'OK',
-                'body': result
-            }
+            return JSONResponse(
+                content={
+                        "book": CursorResultDict(result)
+                }
+            )
         else:
-            return {
-                'status': 500,
-                'message': 'User not found.',
-                'body': None
-            }
+            return JSONResponse(
+                status_code = 404,
+                content = {
+                "details": 'Book not found'
+                }
+            )
 
     @setUp
     def delete_book_by_id(id: int, *args, **kwargs):
@@ -233,12 +309,12 @@ class BookMethods():
             session.delete(request)
             return {
                 'status': 200,
-                'message': 'OK',
+                "details": 'OK',
             }
         except Exception as err:
             return {
                 'status': 500,
-                'message': err + " . Operation is unavailable."
+                "details": err + " . Operation is unavailable."
             }
 
     @setUp
@@ -255,14 +331,35 @@ class BookMethods():
                 returning(Books)
             )
             result = session.execute(stmt)
-            return {
-                'status': 200,
-                'message': 'OK',
-                'body': result
-            }
+            return JSONResponse(
+                content=json.dumps({
+                    "body": result
+                })
+            )
         except Exception as err:
-            return {
-                'status': 500,
-                'message': err + " . Operation is unavailable.",
-                'body': None
-            }
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content=json.dumps({
+                    "details": err + " . Operation is unavailable.",
+                })
+            )
+
+def CursorResultDict(obj: CursorResult | List[CursorResult], *args, **kwargs) -> dict:
+            if type(obj) is list:
+                result_keys, result_items = [elem.keys() for elem in obj], [elem.items() for elem in obj]
+                result_dict = []
+                for i in range(len(result_keys)):
+                    result_dict.append(dict(zip(result_keys[i], result_items[i])))
+                for i in range(len(result_dict)):
+                    for key in result_dict[i].keys():
+                        result_dict[i][key] = result_dict[i][key][1:]
+                        if len(result_dict[i][key]) == 1:
+                            result_dict[i][key] = result_dict[i][key][0]
+            else:
+                result_keys, result_items = obj.keys(), obj.items()
+                result_dict = dict(zip(result_keys, result_items))
+                for key in result_dict.keys():
+                    result_dict[key] = result_dict[key][1:]
+                    if len(result_dict[key]) == 1:
+                        result_dict[key] = result_dict[key][0]
+            return result_dict
