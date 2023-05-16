@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from backend.routes import router
-from backend.db.db import init_db as inicialization_database
+from backend.db.db import init_db as initialization_database
 
 
 app = FastAPI()
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 app.include_router(router)
 @app.get("/")
 async def root():
+    initialization_database()
     return {"message": "Hello world!"}
 
 

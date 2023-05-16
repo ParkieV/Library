@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
-from backend.db.schema import User, Book, ModelAuth
+from backend.db.schema import UserModel, BookModel, BookCreateUpdateModel, AuthModel
 from backend.db.models import Users, Books
 from backend.db.settings import DBSettings
 
@@ -40,7 +40,7 @@ class UserMethods():
         return True
     
     @setUp
-    def get_user_by_email(email: EmailStr, *args, **kwargs) -> User | None:
+    def get_user_by_email(email: EmailStr, *args, **kwargs) -> UserModel | None:
         session = kwargs["session"]
         if not UserMethods._email_validation(email):
             return {
@@ -61,7 +61,7 @@ class UserMethods():
         }
     
     @setUp
-    def create_user(model: User, *args, **kwargs) -> dict:
+    def create_user(model: UserModel, *args, **kwargs) -> dict:
         session = kwargs["session"]
         if not UserMethods._auth_validation(model.email, model.password):
             return {
@@ -86,7 +86,7 @@ class UserMethods():
         }
 
     @setUp
-    def get_user_by_id(id: int, *args, **kwargs) -> User | None:
+    def get_user_by_id(id: int, *args, **kwargs) -> UserModel | None:
         session = kwargs["session"]
         result = session.query(Users).filter(Users.id == id).first()
         if result:
@@ -102,7 +102,7 @@ class UserMethods():
         }
 
     @setUp
-    def update_user(model: User, *args, **kwargs) -> dict:
+    def update_user(model: UserModel, *args, **kwargs) -> dict:
         session = kwargs["session"]
         user = UserMethods.get_user_by_id(model.id)
         if user['status'] != 200:
@@ -147,9 +147,8 @@ class UserMethods():
             }
     
     @setUp
-    def get_user_by_email_password(model: ModelAuth, *args, **kwargs) -> JSONResponse:
+    def get_user_by_email_password(model: AuthModel, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
-        print(model.email, model.password)
         if not UserMethods._auth_validation(model.email, model.password):
             return JSONResponse(
                 status_code = 400,
@@ -174,16 +173,17 @@ class UserMethods():
                     "details": "User not found"
                     }
                 )
+            result = result[0]
             return JSONResponse(
                 content={
-                    "body": CursorResultDict(result)
+                    "user": CursorResultDict(result)
                 }
             )
         except Exception as err:
             return JSONResponse(
                 status_code = 500,
                 content = {
-                "details": str(err) + ". Operation is unavailable"
+                    "details": str(err) + ". Operation is unavailable"
                 }
             )
 
@@ -196,6 +196,7 @@ class BookMethods():
             session = Session(bind=engine)
             kwargs['session'] = session
             result = func(*args, **kwargs)
+            session.commit()
             session.close()
             return result
         return _wrapper
@@ -232,41 +233,41 @@ class BookMethods():
                   "details": str(err) + " . Operation is unavailable.",  
                 }
             )
+    
+    @setUp
+    def get_book_by_title_authors(title: str, authors: str, *args, **kwargs) -> dict:
+        session = kwargs['session']
+        query = text("""
+            SELECT *
+            FROM books
+            WHERE id = :book_title
+            AND author;
+        """)
+        result = session.execute(query, {"book_id": id}).mappings().first()
+        if result:
+            return JSONResponse(
+                content={
+                        "book": CursorResultDict(result)
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code = 404,
+                content = {
+                "details": 'Book not found'
+                }
+            )
 
     @setUp
-    def create_book(model: Book, *args, **kwargs) -> JSONResponse:
+    def create_book(model: Books, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
-        if not model.user_id_taken:
-            if UserMethods.get_user_by_id(model.user_id_taken).status_code != 200:
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "details": 'Uncorrect values.'
-                    }
-                )
-        if not model.user_reserved_id:
-            if UserMethods.get_user_by_id(model.user_reserved_id).status_code != 200:
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "details": 'Uncorrect values.'
-                    }
-                )
         try:
-            query = text("""
-                INSERT INTO books 
-                (title, authors, user_id_taken, user_reserved_id, date_start_use, date_finish_use)
-                VALUES(:title, :autors, :user_id_taken, :user_reserved_id, 
-                :date_start_use, :date_finish_use)
-            """)
-            session.execute(query, {
-                "tit"
-            })
+            session.add(model)
         except Exception as err:
             return JSONResponse(
-                status_code= 500,
+                status_code = 500,
                 content={
-                  "details": str(err) + " . Operation is unavailable.",  
+                  "details": str(err) + ". Operation is unavailable.",  
                 }
             )
         return JSONResponse(
@@ -302,46 +303,60 @@ class BookMethods():
     def delete_book_by_id(id: int, *args, **kwargs):
         session = kwargs['session']
         book = BookMethods.get_book_by_id(id)
-        if book['status'] != 200:
+        if book.status_code != 200:
             return book
         try:
-            request = Books.query.filter(Books.id == id).first()
-            session.delete(request)
-            return {
-                'status': 200,
-                "details": 'OK',
-            }
+            query = text("""
+                DELETE FROM books
+                WHERE id = :id;
+            """)
+            session.execute(query, {
+                "id": id
+            })
+            return JSONResponse(
+                content={
+                    "details": 'OK'
+                }
+            )
         except Exception as err:
-            return {
-                'status': 500,
-                "details": err + " . Operation is unavailable."
-            }
+            return JSONResponse(
+                status_code = 500,
+                content={
+                    "details": err + " . Operation is unavailable."
+                }
+            )
 
     @setUp
-    def update_book(model: Book, *args, **kwargs) -> dict:
+    def update_book(model: Books, *args, **kwargs) -> dict:
         session = kwargs["session"]
-        book = BookMethods.get_book_by_id(model.id)
-        if book['status'] != 200:
-            return book
         try:
-            stmt = (
-                update(Books).
-                where(Books.id == model.id).
-                values(model.dict(exclude_unset=True)).
-                returning(Books)
-            )
-            result = session.execute(stmt)
+            print(model)
+            query = text("""
+                UPDATE books
+                SET (title, authors, user_id_taken, user_reserved_id, date_start_use, date_finish_use) = 
+                (:title, :authors, :user_id_taken, :user_reserved_id, :date_start_use, :date_finish_use) 
+                WHERE id = :id;
+            """)
+            session.execute(query, {
+                "title": model.title,
+                "authors": model.authors,
+                "user_id_taken": model.user_id_taken,
+                "user_reserved_id": model.user_reserved_id,
+                "date_start_use": model.date_start_use,
+                "date_finish_use": model.date_finish_use,
+                "id": model.id
+            })
             return JSONResponse(
-                content=json.dumps({
-                    "body": result
-                })
+                content={
+                    "details": "OK"
+                }
             )
         except Exception as err:
             return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content=json.dumps({
-                    "details": err + " . Operation is unavailable.",
-                })
+                status_code=500,
+                content={
+                    "details": str(err) + ". Operation is unavailable.",
+                }
             )
 
 def CursorResultDict(obj: CursorResult | List[CursorResult], *args, **kwargs) -> dict:

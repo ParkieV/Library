@@ -11,12 +11,12 @@ class Users(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String)
     surname = Column(String)
-    last_name = Column(String, nullable=True, default=Null)
+    last_name = Column(String, nullable=True)
     email = Column(String, unique=True, nullable=False)
     password = Column(String, unique=True, nullable=False)
     user_type = Column(String, nullable=False, default="AnonymousUser")
-    book_id_taken = Column(Integer, ForeignKey("books.id"), nullable=True, default=Null)
-    reserved_book_id = Column(Integer, ForeignKey("books.id"), nullable=True, default=Null)
+    book_id_taken = Column(Integer, ForeignKey("books.id"), nullable=True)
+    reserved_book_id = Column(Integer, ForeignKey("books.id"), nullable=True)
 
 
 class Books(Base):
@@ -24,7 +24,7 @@ class Books(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String)
     authors = Column(String)
-    user_id_taken = Column(Integer, ForeignKey("books.id"), nullable=True, default=Null)
-    user_reserved_id = Column(Integer, ForeignKey("books.id"), nullable=True, default=Null)
-    date_start_use = Column(Date, nullable=True, default=Null)
-    date_finish_use = Column(Date, nullable=True, default=Null)
+    user_id_taken = Column(Integer, ForeignKey("books.id"), nullable=True)
+    user_reserved_id = Column(Integer, ForeignKey("books.id"), nullable=True)
+    date_start_use = Column(Date, nullable=True)
+    date_finish_use = Column(Date, nullable=True)

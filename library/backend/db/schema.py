@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from datetime import date
 
-class User(BaseModel):
+class UserModel(BaseModel):
     id: int
     name: str
     surname: str
@@ -12,24 +12,27 @@ class User(BaseModel):
     book_id_taken: int | None
     reserved_book_id: int | None
 
-
-class Book(BaseModel):
-    id: int
-    title: str
-    authors: str
-    user_id_taken: int | None
-    user_reserved_id: int | None
-    date_start_use: date | None
-    date_finish_use: date | None
-
-
-
-class ModelAuth(BaseModel):
+    
+class AuthModel(BaseModel):
     email: EmailStr
     password: str
 
-class BookGetDelete(ModelAuth):
+
+class BookModel(BaseModel):
+    title: str
+    authors: str
+    user_id_taken: int | None = None
+    user_reserved_id: int | None = None
+    date_start_use: date | None = None
+    date_finish_use: date | None = None
+
+
+class BookDBModel(BookModel):
+    id: int
+
+
+class BookGetDeleteModel(AuthModel):
     pass
 
-class BookUpdate(ModelAuth, Book):
+class BookCreateUpdateModel(BookModel, AuthModel):
     pass
