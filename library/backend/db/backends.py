@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
-from backend.db.schema import UserModel, BookModel, BookCreateUpdateModel, AuthModel
+from backend.db.schema import UserDBModel, BookDBModel, AuthModel
 from backend.db.models import Users, Books
 from backend.db.settings import DBSettings
 
@@ -40,112 +40,136 @@ class UserMethods():
         return True
     
     @setUp
-    def get_user_by_email(email: EmailStr, *args, **kwargs) -> UserModel | None:
+    def get_user_by_email(email: EmailStr, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
         if not UserMethods._email_validation(email):
-            return {
-                'status': 500,
-                "details": 'Invalid email.'
-            }
+            return JSONResponse(
+                status_code = 500,
+                content={
+                    "details": 'Invalid email.'
+                }
+                
+            )
         result = session.query(Users).filter(Users.email == email).first()
         if result:
-            return {
-                'status': 200,
-                "details": 'OK',
-                'body': result
+            return JSONResponse(
+                status_code = 200,
+                content={
+                    "body": CursorResultDict(result)
+                }
+                
+            )
+        return JSONResponse(
+            status_code = 500,
+            content={
+                "details": 'User not found.'
             }
-        return {
-            'status': 500,
-            "details": 'User not found.',
-            'body': None
-        }
+            
+        )
     
     @setUp
-    def create_user(model: UserModel, *args, **kwargs) -> dict:
+    def create_user(model: Users, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
-        if not UserMethods._auth_validation(model.email, model.password):
-            return {
-                'status': 500,
-                "details": 'Invalid email or password.'
-            }
-        if UserMethods.get_user_by_email(model.email)['status'] != 500:
-            return {
-                'status': 500,
-                "details": 'User already exists.'
-            }
         try:
             session.add(model)
         except Exception as err:
-            return {
-                'status': 500,
-                "details": err + " . Operation is unavailable."
-            }
-        return {
-            'status': 200,
-            "details": 'OK'
-        }
-
-    @setUp
-    def get_user_by_id(id: int, *args, **kwargs) -> UserModel | None:
-        session = kwargs["session"]
-        result = session.query(Users).filter(Users.id == id).first()
-        if result:
-            return {
-                'status': 200,
-                "details": 'OK',
-                'body': result
-            }
-        return {
-            'status': 500,
-            "details": 'User not found.',
-            'body': None
-        }
-
-    @setUp
-    def update_user(model: UserModel, *args, **kwargs) -> dict:
-        session = kwargs["session"]
-        user = UserMethods.get_user_by_id(model.id)
-        if user['status'] != 200:
-            return user
-        try:
-            stmt = (
-                update(Users).
-                where(Users.id == model.id).
-                values(model.dict(exclude_unset=True)).
-                returning(Users)
+            return JSONResponse(
+                status_code = 500,
+                content={
+                  "details": str(err) + ". Operation is unavailable.",  
+                }
             )
-            result = session.execute(stmt)
-            return {
-                'status': 200,
-                "details": 'OK',
-                'body': result
+        return JSONResponse(
+            content={
+                "details": 'OK'
             }
-        except Exception as err:
-            return {
-                'status': 500,
-                "details": err + " . Operation is unavailable.",
-                'body': None
-            }
+        )
 
     @setUp
-    def delete_user_by_id(id: int, *args, **kwargs) -> dict:
+    def get_user_by_id(id: int, *args, **kwargs) -> JSONResponse:
+        session = kwargs['session']
+        query = text("""
+            SELECT *
+            FROM users
+            WHERE id = :user_id;
+        """)
+        result = session.execute(query, {"user_id": id}).mappings().first()
+        if result:
+            return JSONResponse(
+                content={
+                        "user": CursorResultDict(result)
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code = 404,
+                content = {
+                "details": 'User not found'
+                }
+            )
+
+    @setUp
+    def update_user(model: UserDBModel, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
+        try:
+            print(model)
+            query = text("""
+                UPDATE users
+                SET (name, surname, last_name, email, password, user_type, book_id_taken, reserved_book_id) = 
+                (:name, :surname, :last_name, :email, :password, :user_type, :book_id_taken, reserved_book_id) 
+                WHERE id = :id;
+            """)
+            session.execute(query, {
+                "name": model.name,
+                "surname": model.surname,
+                "last_name": model.last_name,
+                "email": model.email,
+                "password": model.password,
+                "user_type": model.user_type,
+                "book_id_taken": model.book_id_taken,
+                "reserved_book_id": model.reserved_book_id,
+                "id": model.id
+            })
+            return JSONResponse(
+                content={
+                    "details": "OK"
+                }
+            )
+        except Exception as err:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "details": str(err) + ". Operation is unavailable.",
+                }
+            )
+
+    @setUp
+    def delete_user_by_id(id: int, *args, **kwargs) -> JSONResponse:
+        session = kwargs['session']
         user = UserMethods.get_user_by_id(id)
-        if user['status'] != 200:
+        if user.status_code != 200:
             return user
         try:
-            request = Users.query.filter(Users.id == id).first()
-            session.delete(request)
-            return {
-                'status': 200,
-                "details": 'OK',
-            }
+            query = text("""
+                DELETE FROM users
+                WHERE id = :id;
+            """)
+            session.execute(query, {
+                "id": id
+            })
+            return JSONResponse(
+                content={
+                    "details": 'OK'
+                }
+            )
         except Exception as err:
-            return {
-                'status': 500,
-                "details": err + " . Operation is unavailable."
-            }
-    
+            return JSONResponse(
+                status_code = 500,
+                content={
+                    "details": err + " . Operation is unavailable."
+                }
+            )
+
     @setUp
     def get_user_by_email_password(model: AuthModel, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
@@ -235,7 +259,7 @@ class BookMethods():
             )
     
     @setUp
-    def get_book_by_title_authors(title: str, authors: str, *args, **kwargs) -> dict:
+    def get_book_by_title_authors(title: str, authors: str, *args, **kwargs) -> JSONResponse:
         session = kwargs['session']
         query = text("""
             SELECT *
@@ -277,7 +301,7 @@ class BookMethods():
         )
 
     @setUp
-    def get_book_by_id(id: int, *args, **kwargs) -> dict:
+    def get_book_by_id(id: int, *args, **kwargs) -> JSONResponse:
         session = kwargs['session']
         query = text("""
             SELECT *
@@ -300,7 +324,7 @@ class BookMethods():
             )
 
     @setUp
-    def delete_book_by_id(id: int, *args, **kwargs):
+    def delete_book_by_id(id: int, *args, **kwargs) -> JSONResponse:
         session = kwargs['session']
         book = BookMethods.get_book_by_id(id)
         if book.status_code != 200:
@@ -327,7 +351,7 @@ class BookMethods():
             )
 
     @setUp
-    def update_book(model: Books, *args, **kwargs) -> dict:
+    def update_book(model: BookDBModel, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
         try:
             print(model)
