@@ -127,11 +127,16 @@ def cancel_take_book(user_id: int, book_id: int) -> JSONResponse:
     )
     BookQueryMethods.create_bookQuery(query)
 
-def authenticate_user(email: EmailStr, password: str):
+def authenticate_user(email: EmailStr, password: str, id: int):
     user = UserMethods.get_user_by_email(email)
     if user.status_code != 200:
         return user
     user = UserDBModel.parse_obj(json.loads(user.body.decode("utf-8"))["user"])
+    if user.id != id:
+        return JSONResponse(
+            status_code=400,
+            content={"details": "User params is uncorrect"}
+        )
     if not PasswordJWT.verify_password(password, user.hashed_password):
         return JSONResponse(
             status_code=400,

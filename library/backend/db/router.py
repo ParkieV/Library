@@ -21,27 +21,27 @@ class BooksDBViews():
     def get_book(
         book_id: int = 0,
         body: BookGetDeleteModel = None) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
             if client["user_type"] == "Librarian":
-                return BookMethods.get_book_by_id(book_id)
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
+                response_book = BookMethods.get_book_by_id(book_id)
+                response_book = json.loads(response_book.body.decode('utf-8'))
+                response_book["access_token"] = token
+                return JSONResponse(
+                    content=response_book
+                )
             else:
                 return JSONResponse(
                     status_code=403,
@@ -54,30 +54,30 @@ class BooksDBViews():
     def update_book(
         book_id : int = 0,
         body: BookCreateUpdateModel = None) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            user = json.loads(body.body.decode('utf-8'))["user"]
-            if user["user_type"] == 'Librarian':
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            if client["user_type"] == 'Librarian':
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
                 if BookMethods.get_book_by_id(book_id).status_code == 200:
                     book_db = BookDB(**body.book.dict())
                     book_db.id = book_id
-                    return BookMethods.update_book(book_db)
+                    response_book = BookMethods.update_book(book_db)
+                    response_book = json.loads(response_book.body.decode('utf-8'))
+                    response_book["access_token"] = token
+                    return JSONResponse(
+                        content=response_book
+                    )
                 else:
                     return JSONResponse(
                         status_code=400,
@@ -95,61 +95,59 @@ class BooksDBViews():
 
     @books_router.put("/action")
     def create_book(body: BookCreateUpdateModel) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-        client = json.loads(auth_result.body.decode('utf-8'))["user"]
-        if client["user_type"] == "Librarian":
-            book = BookDB(**body.book.dict())
-            return BookMethods.create_book(book)
-        else:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied"
-                }
-            )
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            if client["user_type"] == "Librarian":
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
+                book = BookDB(**body.book.dict())
+                response_book = BookMethods.create_book(book)
+                response_book = json.loads(response_book.body.decode('utf-8'))
+                response_book["access_token"] = token
+                return JSONResponse(
+                    content=response_book
+                )
+            else:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "details": "Access denied"
+                    }
+                )
 
     @books_router.delete("/action")
     def delete_book(
         book_id: int = 0,
         body: BookGetDeleteModel = None) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
             if client["user_type"] == "Librarian":
-                return BookMethods.delete_book_by_id(book_id)
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                response_book = BookMethods.delete_book_by_id(book_id)
+                response_book = json.loads(response_book.body.decode('utf-8'))
+                response_book["access_token"] = token
+                return JSONResponse(
+                    content=response_book
+                )
             else:
                 return JSONResponse(
                     status_code=403,
@@ -253,7 +251,7 @@ class UsersDBViews():
             return JSONResponse(
                 status_code=400,
                 content={
-                    "details": "Uncorrect request."
+                    "details": "Uncorrect request.1"
                 }
             )
         auth_result = PasswordJWT.check_access_token(body.auth)
@@ -269,6 +267,7 @@ class UsersDBViews():
                 client["access_token"] = token
                 client["time_token_create"] = datetime.now().isoformat()
                 result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                print("ok")
                 if result.status_code != 200:
                     return result
                 user = body.user.dict()

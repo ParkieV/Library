@@ -25,7 +25,7 @@ class UserViews():
         user_id: Annotated[int, Path(title="id for user")],
         body: AuthModel
     ) -> JSONResponse:
-        user = authenticate_user(body.email, body.password)
+        user = authenticate_user(body.email, body.password, user_id)
         if user.status_code != 200:
             return user
         token = json.loads(user.body.decode("utf-8"))["user"]["access_token"]

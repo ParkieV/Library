@@ -80,16 +80,16 @@ class BookDBModel(BookModel):
 
 
 class BookGetDeleteModel(BaseModel):
-    auth: AuthModel | None = None
+    auth: BaseAuthToken | None = None
 
 
 class BookCreateUpdateModel(BaseModel):
-    auth: AuthModel | None = None
+    auth: BaseAuthToken | None = None
     book: BookModel | None = None
 
 
 class UserGetDeleteModel(BaseModel):
-    auth: AuthModel | None = None
+    auth: BaseAuthToken | None = None
 
 
 class UserCreateUpdateModel(BaseModel):
