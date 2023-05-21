@@ -1,14 +1,16 @@
 import json
 from fastapi import APIRouter, Path
 from typing import Annotated
+from datetime import datetime
 from fastapi.responses import JSONResponse
 
-from backend.db.schema import BookGetDeleteModel, BookCreateUpdateModel
+from backend.db.schema import BookGetDeleteModel, BookCreateUpdateModel, UserDBModel, UserHashedModel
 from backend.db.backends import BookMethods, UserMethods, BookQueryMethods, PasswordJWT
 from backend.db.schema import BookQueryModel, QueryGetDeleteModel, QueryCreateModel
 from backend.db.models import Books as BookDB
 from backend.db.models import Users as UserDB
 from backend.db.schema import UserGetDeleteModel, UserCreateUpdateModel
+from backend.user.schema import UserAuthModel
 
 
 class BooksDBViews():
@@ -164,7 +166,7 @@ class UsersDBViews():
     @users_router.get("/action")
     def get_user(
         user_id: int = 0,
-        body: UserGetDeleteModel = None) -> JSONResponse:
+        body: UserAuthModel = None) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -174,18 +176,30 @@ class UsersDBViews():
             )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            if client["id"] != user_id:
+                return JSONResponse(
+                    status_code=400,
+                    content={"details": "Uncorrect request"}
+                )
             if client["user_type"] == "Admin" or client["id"] == user_id:
-                return UserMethods.get_user_by_id(user_id)
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
+                response_user = UserMethods.get_user_by_id(user_id)
+                response_user = json.loads(response_user.body.decode('utf-8'))
+                response_user["access_token"] = token
+                return JSONResponse(
+                    content=response_user
+                )
             else:
                 return JSONResponse(
                     status_code=403,
@@ -197,7 +211,7 @@ class UsersDBViews():
     @users_router.delete("/action")
     def delete_user(
         user_id: int = 0,
-        body: BookGetDeleteModel = None) -> JSONResponse:
+        body: UserAuthModel = None) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -207,18 +221,24 @@ class UsersDBViews():
             )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
             if client["user_type"] == "Admin" or client["id"] == user_id:
-                return UserMethods.delete_user_by_id(user_id)
+                client["access_token"] = token
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
+                response_user = UserMethods.delete_user_by_id(user_id)
+                response_user = json.loads(response_user.body.decode('utf-8'))
+                response_user["access_token"] = token
+                return JSONResponse(
+                    content=response_user
+                )
             else:
                 return JSONResponse(
                     status_code=403,
@@ -238,19 +258,30 @@ class UsersDBViews():
             )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
             token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
             if client["user_type"] == "Admin":
-                user = UserDB(**body.user.dict())
-                return UserMethods.create_user(user)
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
+                user = body.user.dict()
+                user["hashed_password"] = PasswordJWT.get_password_hash(user["password"])
+                user.pop("password")
+                user = UserHashedModel.parse_obj(user)
+                user = UserDB(**user.dict())
+                response_user = UserMethods.create_user(user)
+                response_user = json.loads(response_user.body.decode('utf-8'))
+                response_user["access_token"] = token
+                return JSONResponse(
+                    content=response_user
+                )
             else:
                 return JSONResponse(
                     status_code=403,
@@ -272,21 +303,31 @@ class UsersDBViews():
             )
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
             token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            client = json.loads(auth_result.body.decode('utf-8'))["user"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
             if client["user_type"] == "Admin" or client["id"] == user_id:
+                client["access_token"] = token
+                client["time_token_create"] = datetime.now().isoformat()
+                result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
                 if UserMethods.get_user_by_id(user_id).status_code == 200:
-                    user = UserDB(**body.user.dict())
-                    user.id = user_id
-                    return UserMethods.update_user(user)
+                    user = body.user.dict()
+                    user["hashed_password"] = PasswordJWT.get_password_hash(user["password"])
+                    user.pop("password")
+                    user["id"] = user_id
+                    user = UserDBModel.parse_obj(user)
+                    response_user = UserMethods.update_user(user)
+                    response_user = json.loads(response_user.body.decode('utf-8'))
+                    response_user["access_token"] = token
+                    return JSONResponse(
+                        content=response_user
+                    )
                 else:
                     return JSONResponse(
                         status_code=400,

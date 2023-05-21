@@ -5,6 +5,9 @@ from datetime import date
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    
+    class Config:
+        orm_mode = True
 
 
 class TokenData(BaseModel):
@@ -28,12 +31,14 @@ class BaseUserModel(BaseModel):
 
 
 class UserModel(BaseUserModel):
-    password: int
+    password: str
 
-
-class UserDBModel(BaseUserModel):
-    id: int
+class UserHashedModel(BaseUserModel):
     hashed_password: str
+
+
+class UserDBModel(UserHashedModel):
+    id: int
 
     class Config:
         orm_mode = True
@@ -59,6 +64,17 @@ class BookModel(BaseModel):
         orm_mode = True
 
 
+class BaseAuthToken(Token, TokenData):
+    pass
+
+
+class UserAuthModel(BaseModel):
+    auth: BaseAuthToken | None = None
+
+    class Config:
+        orm_mode = True
+
+
 class BookDBModel(BookModel):
     id: int
 
@@ -77,7 +93,7 @@ class UserGetDeleteModel(BaseModel):
 
 
 class UserCreateUpdateModel(BaseModel):
-    auth: AuthModel | None = None
+    auth: BaseAuthToken | None = None
     user: UserModel | None = None
 
 

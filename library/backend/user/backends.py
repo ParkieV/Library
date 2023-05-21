@@ -142,10 +142,11 @@ def authenticate_user(email: EmailStr, password: str):
     jwt_settings = JWTSettings()
     access_token_expires = timedelta(minutes=int(jwt_settings.token_expire_minutes))
     user.access_token = PasswordJWT.create_access_token({"sub": user.email}, access_token_expires)
-    user.time_token_create = str(datetime.now())
+    user.time_token_create = datetime.now().isoformat()
     UserMethods.update_user(user)
     return JSONResponse(
         content={
             "user": user.dict()
         }
     )
+    

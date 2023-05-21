@@ -28,8 +28,6 @@ class UserViews():
         user = authenticate_user(body.email, body.password)
         if user.status_code != 200:
             return user
-        else:
-            print("ok")
         token = json.loads(user.body.decode("utf-8"))["user"]["access_token"]
         return Token(
             access_token=token,

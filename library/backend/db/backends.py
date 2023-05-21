@@ -3,7 +3,8 @@ import json
 from sqlalchemy import create_engine, text, CursorResult
 from pydantic import EmailStr
 from typing import List, Annotated
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, timezone
+from dateutil import parser
 from jose import JWTError, jwt
 from fastapi import Depends
 
@@ -47,9 +48,11 @@ class PasswordJWT():
                 status_code=403,
                 content={"details": "User not found"}
             )
-        user = UserDBModel.parse_obj(json.loads(user.body.decode["utf-8"])["user"])
+        user = UserDBModel.parse_obj(json.loads(user.body.decode("utf-8"))["user"])
         if auth_model.access_token == user.access_token:
-            if datetime.today() - user.time_token_create > timedelta(minutes=JWTSettings.token_expire_minutes):
+            user.time_token_create = user.time_token_create[1:-1]
+            tokenTime = datetime.fromisoformat(user.time_token_create)
+            if datetime.now(timezone.utc) - tokenTime > timedelta(minutes=int(PasswordJWT.settings.token_expire_minutes)):
                 user.access_token = None
                 user.time_token_create = None
                 UserMethods.update_user(user)
@@ -57,7 +60,7 @@ class PasswordJWT():
                     status_code=403,
                     content={"details": "Token is outdated"}
                 )
-            new_token = PasswordJWT.create_access_token({"sub": auth_model.email}, JWTSettings.token_expire_minutes)
+            new_token = PasswordJWT.create_access_token({"sub": auth_model.email}, timedelta(minutes=int(PasswordJWT.settings.token_expire_minutes)))
             return JSONResponse(
                 content={"token": new_token})
         return JSONResponse(
@@ -89,11 +92,13 @@ class UserMethods():
             WHERE email = :user_email;
         """)
         result = session.execute(query, {"user_email": email}).mappings().first()
+        response = CursorResultDict(result)
+        response["time_token_create"] = json.dumps(response["time_token_create"], default=json_serial)
         if result:
             return JSONResponse(
                 status_code = 200,
                 content={
-                    "user": CursorResultDict(result)
+                    "user": response
                 }
                 
             )
@@ -132,10 +137,23 @@ class UserMethods():
             WHERE id = :user_id;
         """)
         result = session.execute(query, {"user_id": id}).mappings().first()
+        response = CursorResultDict(result)
+        response["time_token_create"] = json.dumps(response["time_token_create"], default=json_serial)
+        user_model = {
+            "id": response["id"],
+        "name": response["name"],
+        "surname": response["surname"],
+        "last_name": response["last_name"],
+        "email": response["email"],
+        "hashed_password": response["hashed_password"],
+        "user_type": response["user_type"],
+        "book_id_taken": response["book_id_taken"],
+        "reserved_book_id": response["reserved_book_id"],
+        }
         if result:
             return JSONResponse(
                 content={
-                        "user": CursorResultDict(result)
+                        "user": user_model
                 }
             )
         else:
@@ -181,21 +199,20 @@ class UserMethods():
     def update_user(model: UserDBModel, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
         try:
-            print(model)
             query = text("""
                 UPDATE users
-                SET (name, surname, email, user_type, access_token, time_token_create, hashed_password) = 
-                (:name, :surname, :email, :user_type, :access_token, :time_token_create, :hashed_password)
+                SET (name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password) = 
+                (:name, :surname, :last_name, :email, :user_type, :book_id_taken, :reserved_book_id, :access_token, :time_token_create, :hashed_password)
                 WHERE id = :id;
             """)
             session.execute(query, {
                 "name": model.name,
                 "surname": model.surname,
-                #"last_name": model.last_name,
+                "last_name": model.last_name,
                 "email": model.email,
                 "user_type": model.user_type,
-                #"book_id_taken": model.book_id_taken,
-                #"reserved_book_id": model.reserved_book_id,
+                "book_id_taken": model.book_id_taken,
+                "reserved_book_id": model.reserved_book_id,
                 "access_token": model.access_token,
                 "time_token_create": model.time_token_create,
                 "hashed_password": model.hashed_password,
@@ -222,9 +239,7 @@ class UserMethods():
             return user
         try:
             query = text("""
-                UPDATE users
-                SET (disabled)
-                VALUES (TRUE)
+                DELETE FROM users
                 WHERE id = :id;
             """)
             session.execute(query, {
@@ -239,7 +254,7 @@ class UserMethods():
             return JSONResponse(
                 status_code = 500,
                 content={
-                    "details": err + " . Operation is unavailable."
+                    "details": str(err) + " . Operation is unavailable."
                 }
             )
 
@@ -682,3 +697,11 @@ def CursorResultDict(obj: CursorResult | List[CursorResult], *args, **kwargs) ->
             if len(result_dict[key]) == 1:
                 result_dict[key] = result_dict[key][0]
     return result_dict
+
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError ("Type %s not serializable" % type(obj))
