@@ -57,8 +57,8 @@ def cancel_reserve_book(user_email: str, user_id: int, book_id: int) -> JSONResp
         if book.status_code == 200:
             book = json.loads(book.body.decode('utf-8'))["book"]
             changed_book = BookDBModel.parse_obj(book)
-            changed_book = Books(**changed_book.dict())
             changed_book.user_reserved_id = None
+            changed_book = Books(**changed_book.dict())
             BookMethods.update_book(changed_book)
     except Exception as err:
         return JSONResponse(

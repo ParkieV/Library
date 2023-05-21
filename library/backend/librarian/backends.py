@@ -1,36 +1,30 @@
 import json
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from pydantic import EmailStr
 
 from fastapi.responses import JSONResponse
 
 from backend.db.backends import UserMethods, BookMethods, BookQueryMethods
 from backend.db.models import Books, Users
+from backend.db.schema import UserDBModel, BookDBModel
 
 
-def accept_reserve_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
-    book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
-    if not user["reserved_book_id"] or not book["user_reserved_id"]:
+def accept_reserve_book(email: EmailStr, user_id: int, book_id: int) -> JSONResponse:
+    user = json.loads(UserMethods.get_user_by_email(email).body.decode('utf-8'))["user"]
+    book = json.loads(BookMethods.get_book_by_id(book_id).body.decode('utf-8'))["book"]
+    if user["reserved_book_id"] or book["user_reserved_id"]:
         return JSONResponse(
             status_code = 400,
             content={
                 "details": "Uncorrect params"
             }
         )
-    query = json.loads(BookQueryMethods.get_bookQuery_by_id_user(user_id).body.encode['utf-8'])["query"]
+    query = json.loads(BookQueryMethods.get_bookQuery_by_user_book(user_id, book_id).body.decode('utf-8'))["query"]
     try:
-        changed_user = Users(
-            id=user["id"],
-            name=user["name"],
-            surname=user["surname"],
-            last_name=user["last_name"],
-            email=user["email"],
-            password=user["password"],
-            user_type=user["user_type"],
-            book_id_taken=user["book_id_taken"],
-            reserved_book_id=book_id
-        )
+        changed_user = UserDBModel.parse_obj(user)
+        changed_user.reserved_book_id = book_id
+        changed_user = Users(**changed_user.dict())
         UserMethods.update_user(changed_user)
     except Exception as err:
         return JSONResponse(
@@ -40,15 +34,10 @@ def accept_reserve_book(user_id: int, book_id: int) -> JSONResponse:
             }
         )
     try:
-        changed_book = Books(
-            id=book["id"],
-            title=book["title"],
-            authors=book["authors"],
-            user_reserved_id=user_id,
-            date_start_reserve=datetime.today().strftime("%d.%m.%Y"),
-            date_start_use=book["date_start_use"],
-            date_finish_use=book["date_finish_use"],
-            )
+        changed_book = BookDBModel.parse_obj(book)
+        changed_book.user_reserved_id = user_id
+        changed_book.date_start_reserve = datetime.now().isoformat()
+        changed_book = Books(**changed_book.dict())
         BookMethods.update_book(changed_book)
     except Exception as err:
         return JSONResponse(
@@ -59,29 +48,21 @@ def accept_reserve_book(user_id: int, book_id: int) -> JSONResponse:
         )
     return BookQueryMethods.delete_bookQuery_by_id(query["id"])
 
-def accept_take_book(user_id: int, book_id: int, date_finish: datetime.date) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
+def accept_take_book(email: EmailStr, user_id: int, book_id: int, date_finish: datetime.now(timezone.utc) + timedelta(days=31)) -> JSONResponse:
+    user = json.loads(UserMethods.get_user_by_email(email).body.encode['utf-8'])["user"]
     book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
-    if not user["book_id_taken"] or not book["user_id_taken"]:
+    if user["book_id_taken"] or book["user_id_taken"]:
         return JSONResponse(
             status_code = 400,
             content={
                 "details": "Uncorrect params"
             }
         )
-    query = json.loads(BookQueryMethods.get_bookQuery_by_id_user(user_id).body.encode['utf-8'])["query"]
+    query = json.loads(BookQueryMethods.get_bookQuery_by_user_book(user_id, book_id).body.encode['utf-8'])["query"]
     try:
-        changed_user = Users(
-            id=user["id"],
-            name=user["name"],
-            surname=user["surname"],
-            last_name=user["last_name"],
-            email=user["email"],
-            password=user["password"],
-            user_type=user["user_type"],
-            book_id_taken=user_id,
-            reserved_book_id=user["reserved_book_id"]
-        )
+        changed_user = UserDBModel.parse_obj(user)
+        changed_user.book_id_taken = book_id
+        changed_user = Users(**changed_user.dict())
         UserMethods.update_user(changed_user)
     except Exception as err:
         return JSONResponse(
@@ -91,15 +72,11 @@ def accept_take_book(user_id: int, book_id: int, date_finish: datetime.date) -> 
             }
         )
     try:
-        changed_book = Books(
-            id=book["id"],
-            title=book["title"],
-            authors=book["authors"],
-            user_reserved_id=user["user_reserved_id"],
-            date_start_reserve=user["date_start_reserve"],
-            date_start_use=datetime.today().strftime("%d.%m.%Y"),
-            date_finish_use=date_finish,
-            )
+        changed_book = BookDBModel.parse_obj(book)
+        changed_book.user_id_taken = user_id
+        changed_book.date_start_use = datetime.now()
+        changed_book.date_finish_use = date_finish
+        changed_book = Books(**changed_book.dict())
         BookMethods.update_book(changed_book)
     except Exception as err:
         return JSONResponse(
@@ -110,29 +87,21 @@ def accept_take_book(user_id: int, book_id: int, date_finish: datetime.date) -> 
         )
     return BookQueryMethods.delete_bookQuery_by_id(query["id"])
 
-def cancel_take_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
+def cancel_take_book(email: EmailStr, user_id: int, book_id: int) -> JSONResponse:
+    user = json.loads(UserMethods.get_user_by_email(email).body.encode['utf-8'])["user"]
     book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
-    if not user["book_id_taken"] or not book["user_id_taken"]:
+    if user["book_id_taken"] or book["user_id_taken"]:
         return JSONResponse(
             status_code = 400,
             content={
                 "details": "Uncorrect params"
             }
         )
-    query = json.loads(BookQueryMethods.get_bookQuery_by_id_user(user_id).body.encode['utf-8'])["query"]
+    query = json.loads(BookQueryMethods.get_bookQuery_by_user_book(user_id, book_id).body.encode['utf-8'])["query"]
     try:
-        changed_user = Users(
-            id=user["id"],
-            name=user["name"],
-            surname=user["surname"],
-            last_name=user["last_name"],
-            email=user["email"],
-            password=user["password"],
-            user_type=user["user_type"],
-            book_id_taken=None,
-            reserved_book_id=user["reserved_book_id"]
-        )
+        changed_user = UserDBModel.parse_obj(user)
+        changed_user.book_id_taken = None
+        changed_user = Users(**changed_user.dict())
         UserMethods.update_user(changed_user)
     except Exception as err:
         return JSONResponse(
@@ -142,15 +111,11 @@ def cancel_take_book(user_id: int, book_id: int) -> JSONResponse:
             }
         )
     try:
-        changed_book = Books(
-            id=book["id"],
-            title=book["title"],
-            authors=book["authors"],
-            user_reserved_id=user["user_reserved_id"],
-            date_start_reserve=user["date_start_reserve"],
-            date_start_use=None,
-            date_finish_use=None,
-            )
+        changed_book = BookDBModel.parse_obj(book)
+        changed_book.user_id_taken = None
+        changed_book.date_start_use = None
+        changed_book.date_finish_use = None
+        changed_book = Books(**changed_book.dict())
         BookMethods.update_book(changed_book)
     except Exception as err:
         return JSONResponse(

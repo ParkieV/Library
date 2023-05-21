@@ -496,8 +496,8 @@ class BookMethods():
             print(model)
             query = text("""
                 UPDATE books
-                SET (title, authors, user_id_taken, user_reserved_id, date_start_use, date_finish_use) = 
-                (:title, :authors, :user_id_taken, :user_reserved_id, :date_start_use, :date_finish_use) 
+                SET (title, authors, user_id_taken, user_reserved_id, date_start_reserve, date_start_use, date_finish_use) = 
+                (:title, :authors, :user_id_taken, :user_reserved_id, :date_start_reserve, :date_start_use, :date_finish_use) 
                 WHERE id = :id;
             """)
             session.execute(query, {
@@ -505,6 +505,7 @@ class BookMethods():
                 "authors": model.authors,
                 "user_id_taken": model.user_id_taken,
                 "user_reserved_id": model.user_reserved_id,
+                "date_start_reserve": model.date_start_reserve,
                 "date_start_use": model.date_start_use,
                 "date_finish_use": model.date_finish_use,
                 "id": model.id

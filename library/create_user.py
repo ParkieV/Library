@@ -12,7 +12,7 @@ def main(*args, **kwargs):
     user = Users(
         name="Степан",
         surname="Пискунов",
-        email="st-psk@mail.ru",
+        email="example123@example.ru",
         hashed_password=PasswordJWT.get_password_hash("Qwerty123."),
         user_type="Admin",
     )

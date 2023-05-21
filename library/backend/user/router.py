@@ -10,13 +10,14 @@ from backend.user.schema import UserAuthModel, BaseAuthToken, ButtonModel
 from backend.user.backends import authenticate_user, reserve_book, cancel_reserve_book, take_book, cancel_take_book
 from backend.db.backends import PasswordJWT, UserMethods
 from backend.db.schema import Token, AuthModel, UserDBModel
+from backend.librarian.router import LibrarianViews
 
 
 class UserViews():
         
     user_router = APIRouter(prefix="/user")
     
-    # user_router.include_router(LibrarianViews.librarian_router, tags=["librarian"])
+    user_router.include_router(LibrarianViews.librarian_router, tags=["librarian"])
     
     @user_router.post("/{user_id}/token")
     def login_for_access_token(
