@@ -17,7 +17,6 @@ class UserViews():
     user_router = APIRouter(prefix="/user")
     
     # user_router.include_router(LibrarianViews.librarian_router, tags=["librarian"])
-    # user_router.include_router(AdminViews.admin_router, tags=["admin"])
     
     @user_router.post("/{user_id}/token")
     def login_for_access_token(
@@ -194,7 +193,7 @@ class UserViews():
         
     
     @user_router.post("/cancel_reserve")
-    def cancelReserveView(body: ButtonModel) -> JSONResponse:
+    def cancel_reserve_view(body: ButtonModel) -> JSONResponse:
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
@@ -215,7 +214,7 @@ class UserViews():
                     content={
                         "details": "Access denied"}
                 )
-            response_query = cancel_reserve_book(body.data.user_id, body.data.book_id)
+            response_query = cancel_reserve_book(client["email"], body.data.user_id, body.data.book_id)
             response_query = json.loads(response_query.body.decode('utf-8'))
             response_query["access_token"] = token
             return JSONResponse(

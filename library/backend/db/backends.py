@@ -458,7 +458,7 @@ class BookMethods():
             return JSONResponse(
                 status_code = 404,
                 content = {
-                "details": 'Book not found'
+                "details": 'Book not found7'
                 }
             )
 
@@ -588,7 +588,7 @@ class BookQueryMethods():
 
     @setUp
     def get_bookQuery_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = session["kwargs"]
+        session = kwargs["session"]
         query = text("""
             SELECT *
             FROM book_queries
@@ -654,7 +654,7 @@ class BookQueryMethods():
     @setUp
     def delete_bookQuery_by_id(id: int, *args, **kwargs) -> JSONResponse:
         session = kwargs["session"]
-        query = BookMethods.get_book_by_id(id)
+        query = BookQueryMethods.get_bookQuery_by_id(id)
         if query.status_code != 200:
             return query
         try:

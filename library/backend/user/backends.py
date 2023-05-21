@@ -37,14 +37,14 @@ def reserve_book(user_id: int, book_id: int) -> JSONResponse:
     )
     return BookQueryMethods.create_bookQuery(BookQuery(**query.dict()))
 
-def cancel_reserve_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.decode('utf-8'))["user"]
+def cancel_reserve_book(user_email: str, user_id: int, book_id: int) -> JSONResponse:
+    user = json.loads(UserMethods.get_user_by_email(user_email).body.decode('utf-8'))["user"]
     book = BookMethods.get_book_by_id(user["reserved_book_id"])
     query = json.loads(BookQueryMethods.get_bookQuery_by_user_book(user_id, book_id).body.decode('utf-8'))["query"]
     try:
         changed_user = UserDBModel.parse_obj(user)
-        changed_user = Users(**changed_user.dict())
         changed_user.reserved_book_id = None
+        changed_user = Users(**changed_user.dict())
         UserMethods.update_user(changed_user)
     except Exception as err:
         return JSONResponse(
@@ -56,7 +56,7 @@ def cancel_reserve_book(user_id: int, book_id: int) -> JSONResponse:
     try:
         if book.status_code == 200:
             book = json.loads(book.body.decode('utf-8'))["book"]
-            changed_book = BookDBModel(book)
+            changed_book = BookDBModel.parse_obj(book)
             changed_book = Books(**changed_book.dict())
             changed_book.user_reserved_id = None
             BookMethods.update_book(changed_book)
