@@ -142,6 +142,8 @@ class BooksDBViews():
                 client["access_token"] = token
                 client["time_token_create"] = datetime.now().isoformat()
                 result = UserMethods.update_user(UserDBModel.parse_obj(client))
+                if result.status_code != 200:
+                    return result
                 response_book = BookMethods.delete_book_by_id(book_id)
                 response_book = json.loads(response_book.body.decode('utf-8'))
                 response_book["access_token"] = token

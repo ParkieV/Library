@@ -33,7 +33,7 @@ class Books(Base):
     date_finish_use = Column(DateTime(timezone=True), nullable=True)
 
 class BookQuery(Base):
-    __tablename__ = "bookQueries"
+    __tablename__ = "book_queries"
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)

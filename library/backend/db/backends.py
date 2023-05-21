@@ -591,11 +591,11 @@ class BookQueryMethods():
         session = session["kwargs"]
         query = text("""
             SELECT *
-            FROM bookQuery
+            FROM book_queries
             WHERE id = :id
         """)
         try:
-            result = session.execute(query, {"id": id}).mapping().first()
+            result = session.execute(query, {"id": id}).mappings().first()
             return JSONResponse(
                 content={
                     "query": CursorResultDict(result)
@@ -610,15 +610,16 @@ class BookQueryMethods():
             )
 
     @setUp
-    def get_bookQuery_by_id_user(user_id: int, *args, **kwargs) -> JSONResponse:
-        session = session["kwargs"]
+    def get_bookQuery_by_user_book(user_id: int, book_id: int, *args, **kwargs) -> JSONResponse:
+        session = kwargs["session"]
         query = text("""
             SELECT *
-            FROM bookQuery
-            WHERE user_id = :user_id
+            FROM book_queries
+            WHERE user_id = :user_id 
+            AND book_id = :book_id
         """)
         try:
-            result = session.execute(query, {"user_id": user_id}).mapping().first()
+            result = session.execute(query, {"user_id": user_id, "book_id": book_id}).mappings().first()
             return JSONResponse(
                 content={
                     "query": CursorResultDict(result)
@@ -652,13 +653,13 @@ class BookQueryMethods():
 
     @setUp
     def delete_bookQuery_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = session["kwargs"]
+        session = kwargs["session"]
         query = BookMethods.get_book_by_id(id)
         if query.status_code != 200:
             return query
         try:
             query = text("""
-                DELETE FROM bookQueries
+                DELETE FROM book_queries
                 WHERE id = :id;
             """)
             session.execute(query, {

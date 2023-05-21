@@ -5,17 +5,16 @@ from datetime import timedelta, datetime
 from sqlalchemy import func
 
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 
 from backend.db.backends import UserMethods, BookMethods, BookQueryMethods, PasswordJWT
-from backend.db.schema import BookQueryModel, UserDBModel
-from backend.db.models import Users, Books
+from backend.db.schema import BookQueryModel, UserDBModel, BookDBModel
+from backend.db.models import Users, Books, BookQuery
 from backend.db.settings import JWTSettings
 
 
 def reserve_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
-    book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
+    user = json.loads(UserMethods.get_user_by_id(user_id).body.decode('utf-8'))["user"]
+    book = json.loads(BookMethods.get_book_by_id(book_id).body.decode('utf-8'))["book"]
     if user["reserved_book_id"]:
         return JSONResponse(
             status_code = 400,
@@ -36,24 +35,16 @@ def reserve_book(user_id: int, book_id: int) -> JSONResponse:
         type_order="Add",
         type_query="Reserve"
     )
-    BookQueryMethods.create_bookQuery(query)
+    return BookQueryMethods.create_bookQuery(BookQuery(**query.dict()))
 
-def cancel_reserve_book(user_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
-    book = json.loads(BookMethods.get_book_by_id(user["reserved_book_id"]).body.encode['utf-8'])["book"]
-    query = json.loads(BookQueryMethods.get_bookQuery_by_id_user(user_id).body.encode['utf-8'])["query"]
+def cancel_reserve_book(user_id: int, book_id: int) -> JSONResponse:
+    user = json.loads(UserMethods.get_user_by_id(user_id).body.decode('utf-8'))["user"]
+    book = BookMethods.get_book_by_id(user["reserved_book_id"])
+    query = json.loads(BookQueryMethods.get_bookQuery_by_user_book(user_id, book_id).body.decode('utf-8'))["query"]
     try:
-        changed_user = Users(
-            id=user["id"],
-            name=user["name"],
-            surname=user["surname"],
-            last_name=user["last_name"],
-            email=user["email"],
-            password=user["password"],
-            user_type=user["user_type"],
-            book_id_taken=user["book_id_taken"],
-            reserved_book_id=None
-        )
+        changed_user = UserDBModel.parse_obj(user)
+        changed_user = Users(**changed_user.dict())
+        changed_user.reserved_book_id = None
         UserMethods.update_user(changed_user)
     except Exception as err:
         return JSONResponse(
@@ -63,16 +54,12 @@ def cancel_reserve_book(user_id: int) -> JSONResponse:
             }
         )
     try:
-        changed_book = Books(
-            id=book["id"],
-            title=book["title"],
-            authors=book["authors"],
-            user_reserved_id=None,
-            date_start_reserve=None,
-            date_start_use=book["date_start_use"],
-            date_finish_use=book["date_finish_use"],
-            )
-        BookMethods.update_book(changed_book)
+        if book.status_code == 200:
+            book = json.loads(book.body.decode('utf-8'))["book"]
+            changed_book = BookDBModel(book)
+            changed_book = Books(**changed_book.dict())
+            changed_book.user_reserved_id = None
+            BookMethods.update_book(changed_book)
     except Exception as err:
         return JSONResponse(
             status_code=500,
@@ -83,8 +70,8 @@ def cancel_reserve_book(user_id: int) -> JSONResponse:
     return BookQueryMethods.delete_bookQuery_by_id(query["id"])
 
 def take_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
-    book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
+    user = json.loads(UserMethods.get_user_by_id(user_id).body.decode('utf-8'))["user"]
+    book = json.loads(BookMethods.get_book_by_id(book_id).body.decode('utf-8'))["book"]
     if user["book_id_taken"]:
         return JSONResponse(
             status_code = 400,
@@ -106,11 +93,11 @@ def take_book(user_id: int, book_id: int) -> JSONResponse:
         type_query="Take"
 
     )
-    BookQueryMethods.create_bookQuery(query)
+    return BookQueryMethods.create_bookQuery(BookQuery(**query.dict()))
 
 def cancel_take_book(user_id: int, book_id: int) -> JSONResponse:
-    user = json.loads(UserMethods.get_user_by_id(user_id).body.encode['utf-8'])["user"]
-    book = json.loads(BookMethods.get_book_by_id(book_id).body.encode['utf-8'])["book"]
+    user = json.loads(UserMethods.get_user_by_id(user_id).body.decode('utf-8'))["user"]
+    book = json.loads(BookMethods.get_book_by_id(book_id).body.decode('utf-8'))["book"]
     if not user["book_id_taken"] or not book["user_id_taken"]:
         return JSONResponse(
             status_code = 400,
@@ -125,7 +112,7 @@ def cancel_take_book(user_id: int, book_id: int) -> JSONResponse:
         type_query="Take"
 
     )
-    BookQueryMethods.create_bookQuery(query)
+    return BookQueryMethods.create_bookQuery(BookQuery(**query.dict()))
 
 def authenticate_user(email: EmailStr, password: str, id: int):
     user = UserMethods.get_user_by_email(email)

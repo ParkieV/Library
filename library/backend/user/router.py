@@ -2,15 +2,14 @@ import json
 
 from fastapi import APIRouter, Path
 from typing import Annotated
-from datetime import timedelta
+from datetime import datetime
 
 from fastapi.responses import JSONResponse
 
 from backend.user.schema import UserAuthModel, BaseAuthToken, ButtonModel
 from backend.user.backends import authenticate_user, reserve_book, cancel_reserve_book, take_book, cancel_take_book
-from backend.db.settings import JWTSettings
 from backend.db.backends import PasswordJWT, UserMethods
-from backend.db.schema import Token, AuthModel
+from backend.db.schema import Token, AuthModel, UserDBModel
 
 
 class UserViews():
@@ -34,7 +33,7 @@ class UserViews():
             token_type="bearer")
     
     @user_router.get("/main")
-    def MainView(body: UserAuthModel) -> JSONResponse:
+    def main_view(body: UserAuthModel) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -71,7 +70,7 @@ class UserViews():
             )
     
     @user_router.get("/{user_id}")
-    def AccountView(
+    def account_view(
         user_id: Annotated[int, Path(title="ID for user")],
         body: UserAuthModel) -> JSONResponse:
         if not body:
@@ -104,130 +103,122 @@ class UserViews():
                 content=response
             )
         
-    @user_router.get("/accept_take")
-    def acceptTakeView(
-        body: ButtonModel) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
+    @user_router.post("/send_take")
+    def send_take_view(body: ButtonModel) -> JSONResponse:
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            result = take_book(body.data.user_id, body.data.book_id)
-            if result:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
-                            "query": result}
-            else:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token))}
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            client["access_token"] = token
+            client["time_token_create"] = datetime.now().isoformat()
+            result = UserMethods.update_user(UserDBModel.parse_obj(client))
+            if result.status_code != 200:
+                return result
+            if client["id"] != body.data.user_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "details": "Access denied"}
+                )
+            response_query = take_book(body.data.user_id, body.data.book_id)
+            response_query = json.loads(response_query.body.decode('utf-8'))
+            response_query["access_token"] = token
             return JSONResponse(
-                content=response
+                content=response_query
             )
         
 
-    @user_router.get("/cancel_take")
-    def cancelTakeView(
-        body: ButtonModel) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
+    @user_router.post("/send_cancel_take")
+    def cancel_take_view(body: ButtonModel) -> JSONResponse:
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            result = cancel_reserve_book(body.data.user_id)
-            if result:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
-                            "query": result}
-            else:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token))}
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            client["access_token"] = token
+            client["time_token_create"] = datetime.now().isoformat()
+            result = UserMethods.update_user(UserDBModel.parse_obj(client))
+            if result.status_code != 200:
+                return result
+            if client["id"] != body.data.user_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "details": "Access denied"}
+                )
+            response_query = cancel_take_book(body.data.user_id, body.data.book_id)
+            response_query = json.loads(response_query.body.decode('utf-8'))
+            response_query["access_token"] = token
             return JSONResponse(
-                content=response
+                content=response_query
             )
             
     
-    @user_router.get("/accept_reserve")
-    def acceptReserveView(
-        body: ButtonModel) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
+    @user_router.post("/send_reserve")
+    def accept_reserve_view(body: ButtonModel) -> JSONResponse:
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            result = reserve_book(body.data.user_id, body.data.book_id)
-            if result:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
-                            "query": result}
-            else:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token))}
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            client["access_token"] = token
+            client["time_token_create"] = datetime.now().isoformat()
+            result = UserMethods.update_user(UserDBModel.parse_obj(client))
+            if result.status_code != 200:
+                return result
+            if client["id"] != body.data.user_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "details": "Access denied"}
+                )
+            response_query = reserve_book(body.data.user_id, body.data.book_id)
+            response_query = json.loads(response_query.body.decode('utf-8'))
+            response_query["access_token"] = token
             return JSONResponse(
-                content=response
+                content=response_query
             )
         
     
-    @user_router.get("/cancel_reserve")
-    def cancelReserveView(
-        body: ButtonModel) -> JSONResponse:
-        if not body:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "details": "Uncorrect request."
-                }
-            )
+    @user_router.post("/cancel_reserve")
+    def cancelReserveView(body: ButtonModel) -> JSONResponse:
         auth_result = PasswordJWT.check_access_token(body.auth)
         if auth_result.status_code != 200:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "details": "Access denied",
-                    "user": {"user_type": "AnonymousUser"}
-                }
-            )
+            return auth_result
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-            result = cancel_reserve_book(body.data.user_id)
-            if result:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
-                            "query": result}
-            else:
-                response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token))}
+            client = UserMethods.get_user_by_email(body.auth.email)
+            if client.status_code != 200:
+                return client
+            token = json.loads(auth_result.body.decode('utf-8'))["token"]
+            client = json.loads(client.body.decode('utf-8'))["user"]
+            client["access_token"] = token
+            client["time_token_create"] = datetime.now().isoformat()
+            result = UserMethods.update_user(UserDBModel.parse_obj(client))
+            if result.status_code != 200:
+                return result
+            if client["id"] != body.data.user_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "details": "Access denied"}
+                )
+            response_query = cancel_reserve_book(body.data.user_id, body.data.book_id)
+            response_query = json.loads(response_query.body.decode('utf-8'))
+            response_query["access_token"] = token
             return JSONResponse(
-                content=response
+                content=response_query
             )
         
