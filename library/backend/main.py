@@ -4,13 +4,8 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from backend.routes import router
-
-from backend.db.db import initialization_database
-
 
 app = FastAPI()
-
 
 
 origins = ["*"]
@@ -23,12 +18,6 @@ app.add_middleware(
 )
 
 logger = logging.getLogger(__name__)
-
-app.include_router(router)
-@app.get("/")
-async def root():
-    initialization_database()
-    return {"message": "Hello world!"}
 
 
 if __name__ == '__main__':
