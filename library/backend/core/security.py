@@ -1,27 +1,23 @@
 import json
 
-from sqlalchemy import create_engine, text, CursorResult
-from pydantic import EmailStr
-from typing import List, Annotated
-from datetime import datetime, timedelta, date, timezone
-from dateutil import parser
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
 from jose import JWTError, jwt
 from fastapi import Depends
 
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 
-from backend.db.schema import UserDBModel, BookDBModel, AuthModel
-from backend.db.schema import TokenData
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import DBSettings, JWTSettings
+from backend.core.token_settings import EnvJWTSettings
+from backend.schemas.tokens_schemas import TokenData
+from backend.crud.usersCRUD import UserMethods
+from backend.schemas.users_schemas import UserDBModel
 
 
 class PasswordJWT():
 
-    settings = JWTSettings()
+    settings = EnvJWTSettings()
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -67,3 +63,36 @@ class PasswordJWT():
             status_code=403,
             content={"details": "Invalid token"}
         )
+
+    
+    async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> JSONResponse:
+        credentials_exception = JSONResponse(
+            status_code=401,
+            content={
+                "details": "Could not validate credentials"
+            },
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        try:
+            payload = jwt.decode(token, PasswordJWT.settings.SECRET_KEY, algorithms=[PasswordJWT.settings.ALGORITHM])
+            email: str = payload.get("sub")
+            if email is None:
+                raise credentials_exception
+            token_data = TokenData(email=email)
+        except JWTError:
+            raise credentials_exception
+        user = UserMethods.get_user_by_email(email)
+        if user.status_code != 200:
+            raise credentials_exception
+        return user
+    
+    async def get_current_active_user(
+        current_user: Annotated[JSONResponse, Depends(get_current_user)]
+    ):
+        if current_user.status_code != 200:
+            return current_user
+        current_user = json.loads(current_user.body.encode["utf-8"])["user"]
+        if current_user["disabled"]:
+            raise JSONResponse(contents={"details": "Inactive user"})
+        return current_user
+    

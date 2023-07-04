@@ -1,22 +1,6 @@
-import json
-
-from sqlalchemy import create_engine, text, CursorResult
-from pydantic import EmailStr
-from typing import List, Annotated
-from datetime import datetime, timedelta, date, timezone
-from dateutil import parser
-from jose import JWTError, jwt
-from fastapi import Depends
-
-from passlib.context import CryptContext
-from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-
-from backend.db.schema import UserDBModel, BookDBModel, AuthModel
-from backend.db.schema import TokenData
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import DBSettings, JWTSettings
+from sqlalchemy import CursorResult
+from typing import List
+from datetime import datetime, date
 
 
 def CursorResultDict(obj: CursorResult | List[CursorResult], *args, **kwargs) -> dict:

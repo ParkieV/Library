@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
-from backend.schemas.auth_schemas import BaseAuthToken
+from backend.schemas.tokens_schemas import BaseAuthToken, Token, TokenData
 
 
 class BaseUserModel(BaseModel):
@@ -39,3 +39,22 @@ class UserGetDeleteModel(BaseModel):
 class UserCreateUpdateModel(BaseModel):
     auth: BaseAuthToken | None = None
     user: UserModel | None = None
+
+class BaseAuthToken(Token, TokenData):
+    pass
+
+
+class UserAuthModel(BaseModel):
+    auth: BaseAuthToken | None = None
+
+    class Config:
+        orm_mode = True
+
+class ButtonData(BaseModel):
+    user_id: int
+    book_id: int
+
+
+class ButtonModel(BaseModel):
+    auth: BaseAuthToken
+    data: ButtonData

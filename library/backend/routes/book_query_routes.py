@@ -1,16 +1,11 @@
 import json
-from fastapi import APIRouter, Path
-from typing import Annotated
-from datetime import datetime
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from backend.db.schema import BookGetDeleteModel, BookCreateUpdateModel, UserDBModel, UserHashedModel
-from backend.db.backends import BookMethods, UserMethods, BookQueryMethods, PasswordJWT
-from backend.db.schema import BookQueryModel, QueryGetDeleteModel, QueryCreateModel
-from backend.db.models import Books as BookDB
-from backend.db.models import Users as UserDB
-from backend.db.schema import UserGetDeleteModel, UserCreateUpdateModel
-from backend.user.schema import UserAuthModel
+from backend.schemas.book_query_schemas import QueryGetDeleteModel, QueryCreateModel
+from backend.models.bookQuery import BookQuery
+from backend.core.token_settings import EnvJWTSettings
+from backend.crud.bookQueryCRUD import BookQueryMethods
 
 
 class BookQueriesDBViews():
@@ -27,7 +22,7 @@ class BookQueriesDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return JSONResponse(
                 status_code=403,
@@ -37,7 +32,6 @@ class BookQueriesDBViews():
                 }
             )
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
             return BookQueryMethods.get_bookQuery_by_id(query_id)
 
     @queries_router.put("/action")
@@ -49,7 +43,7 @@ class BookQueriesDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return JSONResponse(
                 status_code=403,
@@ -58,9 +52,7 @@ class BookQueriesDBViews():
                     "user": {"user_type": "AnonymousUser"}
                 }
             )
-        else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
-        query = BookDB(**body.query.dict())
+        query = BookQuery(**body.query.dict())
         return BookQueryMethods.create_bookQuery(query)
 
     @queries_router.delete("/action")
@@ -74,7 +66,7 @@ class BookQueriesDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return JSONResponse(
                 status_code=403,
@@ -84,5 +76,4 @@ class BookQueriesDBViews():
                 }
             )
         else:
-            token = json.loads(auth_result.body.decode("utf-8"))["token"]
             return BookQueryMethods.delete_bookQuery_by_id(query_id)

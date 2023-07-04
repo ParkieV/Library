@@ -1,41 +1,19 @@
 import json
 
-from sqlalchemy import create_engine, text, CursorResult
+from sqlalchemy import text
 from pydantic import EmailStr
-from typing import List, Annotated
-from datetime import datetime, timedelta, date, timezone
-from dateutil import parser
-from jose import JWTError, jwt
-from fastapi import Depends
 
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from backend.db.schema import UserDBModel, BookDBModel, AuthModel
-from backend.db.schema import TokenData
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import DBSettings, JWTSettings
+from backend.schemas.users_schemas import UserDBModel
+from backend.schemas.tokens_schemas import AuthModel
+from backend.models.users import Users
+from backend.db.serializer import CursorResultDict, json_serial
 
 
 class UserMethods():
-    def setUp(func) -> None:
-        def _wrapper(*args, **kwargs):
-            settings = DBSettings()
-            engine = create_engine(f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}")
-            session = Session(bind=engine)
-            kwargs['session'] = session
-            result = func(*args, **kwargs)
-            session.commit()
-            session.close()
-            return result
-        return _wrapper
-
-    @setUp
-    def get_user_by_email(email: EmailStr, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
-
+    def get_user_by_email(email: EmailStr, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM users
@@ -60,12 +38,13 @@ class UserMethods():
             
         )
     
-    @setUp
-    def create_user(model: Users, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def create_user(model: Users, session: Session, *args, **kwargs) -> JSONResponse:
         try:
             session.add(model)
+            session.commit()
+            session.close()
         except Exception as err:
+            print(str(err))
             return JSONResponse(
                 status_code = 500,
                 content={
@@ -78,9 +57,7 @@ class UserMethods():
             }
         )
 
-    @setUp
-    def get_user_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs['session']
+    def get_user_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM users
@@ -114,40 +91,7 @@ class UserMethods():
                 }
             )
 
-    async def get_current_user(token: Annotated[str, Depends(PasswordJWT.oauth2_scheme)]) -> JSONResponse:
-        credentials_exception = JSONResponse(
-            status_code=401,
-            content={
-                "details": "Could not validate credentials"
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        try:
-            payload = jwt.decode(token, PasswordJWT.settings.SECRET_KEY, algorithms=[PasswordJWT.settings.ALGORITHM])
-            email: str = payload.get("sub")
-            if email is None:
-                raise credentials_exception
-            token_data = TokenData(email=email)
-        except JWTError:
-            raise credentials_exception
-        user = UserMethods.get_user_by_email(email)
-        if user.status_code != 200:
-            raise credentials_exception
-        return user
-    
-    async def get_current_active_user(
-        current_user: Annotated[JSONResponse, Depends(get_current_user)]
-    ):
-        if current_user.status_code != 200:
-            return current_user
-        current_user = json.loads(current_user.body.encode["utf-8"])["user"]
-        if current_user["disabled"]:
-            raise JSONResponse(contents={"details": "Inactive user"})
-        return current_user
-    
-    @setUp
-    def update_user(model: UserDBModel, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def update_user(model: UserDBModel, session: Session, *args, **kwargs) -> JSONResponse:
         try:
             query = text("""
                 UPDATE users
@@ -181,9 +125,7 @@ class UserMethods():
                 }
             )
 
-    @setUp
-    def delete_user_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs['session']
+    def delete_user_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         user = UserMethods.get_user_by_id(id)
         if user.status_code != 200:
             return user
@@ -208,9 +150,7 @@ class UserMethods():
                 }
             )
 
-    @setUp
-    def get_user_by_email_password(model: AuthModel, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def get_user_by_email_password(model: AuthModel, session: Session, *args, **kwargs) -> JSONResponse:
         if not UserMethods._auth_validation(model.email, model.password):
             return JSONResponse(
                 status_code = 400,
@@ -249,9 +189,7 @@ class UserMethods():
                 }
             )
 
-    @setUp
-    def get_database(offset: int = 0, limit: int = 15, *args, **kwargs) ->JSONResponse:
-        session = kwargs["session"]
+    def get_database(session: Session, offset: int = 0, limit: int = 15, *args, **kwargs) ->JSONResponse:
         if limit == 0:
             try: 
                 query = text(

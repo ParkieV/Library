@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from backend.schemas.auth_schemas import AuthModel
+from backend.schemas.tokens_schemas import AuthModel
 
 
 class BookQueryModel(BaseModel):

@@ -6,13 +6,18 @@ from datetime import datetime
 
 from fastapi.responses import JSONResponse
 
+from backend.schemas.tokens_schemas import AuthModel, Token, BaseAuthToken
+from backend.schemas.users_schemas import UserAuthModel, UserDBModel, ButtonModel, UserCreateUpdateModel, UserHashedModel
+from backend.models.users import Users
+from backend.core.token_settings import EnvJWTSettings
+from backend.crud.usersCRUD import UserMethods
+from backend.db.user_methods import authenticate_user, take_book, cancel_take_book, reserve_book, cancel_reserve_book
+
 
 class UserViews():
-        
+
     user_router = APIRouter(prefix="/user")
-    
-    user_router.include_router(LibrarianViews.librarian_router, tags=["librarian"])
-    
+
     @user_router.post("/{user_id}/token")
     def login_for_access_token(
         user_id: Annotated[int, Path(title="id for user")],
@@ -25,7 +30,7 @@ class UserViews():
         return Token(
             access_token=token,
             token_type="bearer")
-    
+
     @user_router.get("/main")
     def main_view(body: UserAuthModel) -> JSONResponse:
         if not body:
@@ -35,7 +40,7 @@ class UserViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return JSONResponse(
                 status_code=403,
@@ -57,16 +62,16 @@ class UserViews():
                 "book_id_taken": user["book_id_taken"],
                 "reserved_book_id": user["reserved_book_id"]
             }
-            response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
+            response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email, access_token=token)),
                         "user": user}
             return JSONResponse(
                 content=response
             )
-    
+
     @user_router.get("/{user_id}")
     def account_view(
-        user_id: Annotated[int, Path(title="ID for user")],
-        body: UserAuthModel) -> JSONResponse:
+            user_id: Annotated[int, Path(title="ID for user")],
+            body: UserAuthModel) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -74,7 +79,7 @@ class UserViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return JSONResponse(
                 status_code=403,
@@ -86,20 +91,20 @@ class UserViews():
         else:
             token = json.loads(auth_result.body.decode["utf-8"])["token"]
             user = UserMethods.get_user_by_email(body.auth.email)
-            
+
             if user.status_code != 200:
                 return user
             user = json.loads(user.body.decode["utf-8"])["user"]
             user = UserDBModel.parse_obj(user)
-            response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email,access_token=token)),
+            response = {"auth": UserAuthModel(auth=BaseAuthToken(email=body.auth.email, access_token=token)),
                         "user": user}
             return JSONResponse(
                 content=response
             )
-        
+
     @user_router.post("/send_take")
     def send_take_view(body: ButtonModel) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -125,11 +130,10 @@ class UserViews():
             return JSONResponse(
                 content=response_query
             )
-        
 
     @user_router.post("/send_cancel_take")
     def cancel_take_view(body: ButtonModel) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -149,17 +153,17 @@ class UserViews():
                     content={
                         "details": "Access denied"}
                 )
-            response_query = cancel_take_book(body.data.user_id, body.data.book_id)
+            response_query = cancel_take_book(
+                body.data.user_id, body.data.book_id)
             response_query = json.loads(response_query.body.decode('utf-8'))
             response_query["access_token"] = token
             return JSONResponse(
                 content=response_query
             )
-            
-    
+
     @user_router.post("/send_reserve")
     def accept_reserve_view(body: ButtonModel) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -185,11 +189,10 @@ class UserViews():
             return JSONResponse(
                 content=response_query
             )
-        
-    
+
     @user_router.post("/cancel_reserve")
     def cancel_reserve_view(body: ButtonModel) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -209,7 +212,8 @@ class UserViews():
                     content={
                         "details": "Access denied"}
                 )
-            response_query = cancel_reserve_book(client["email"], body.data.user_id, body.data.book_id)
+            response_query = cancel_reserve_book(
+                client["email"], body.data.user_id, body.data.book_id)
             response_query = json.loads(response_query.body.decode('utf-8'))
             response_query["access_token"] = token
             return JSONResponse(
@@ -223,8 +227,8 @@ class UsersDBViews():
 
     @users_router.get("/action")
     def get_user(
-        user_id: int = 0,
-        body: UserAuthModel = None) -> JSONResponse:
+            user_id: int = 0,
+            body: UserAuthModel = None) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -232,7 +236,7 @@ class UsersDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -265,11 +269,11 @@ class UsersDBViews():
                         "details": "Access denied"
                     }
                 )
- 
+
     @users_router.delete("/action")
     def delete_user(
-        user_id: int = 0,
-        body: UserAuthModel = None) -> JSONResponse:
+            user_id: int = 0,
+            body: UserAuthModel = None) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -277,7 +281,7 @@ class UsersDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -314,7 +318,7 @@ class UsersDBViews():
                     "details": "Uncorrect request.1"
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -331,10 +335,11 @@ class UsersDBViews():
                 if result.status_code != 200:
                     return result
                 user = body.user.dict()
-                user["hashed_password"] = PasswordJWT.get_password_hash(user["password"])
+                user["hashed_password"] = EnvJWTSettings.get_password_hash(
+                    user["password"])
                 user.pop("password")
                 user = UserHashedModel.parse_obj(user)
-                user = UserDB(**user.dict())
+                user = Users(**user.dict())
                 response_user = UserMethods.create_user(user)
                 response_user = json.loads(response_user.body.decode('utf-8'))
                 response_user["access_token"] = token
@@ -351,8 +356,8 @@ class UsersDBViews():
 
     @users_router.post("/action")
     def update_user(
-        user_id : int = 0,
-        body: UserCreateUpdateModel = None) -> JSONResponse:
+            user_id: int = 0,
+            body: UserCreateUpdateModel = None) -> JSONResponse:
         if not body:
             return JSONResponse(
                 status_code=400,
@@ -360,7 +365,7 @@ class UsersDBViews():
                     "details": "Uncorrect request."
                 }
             )
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -377,12 +382,14 @@ class UsersDBViews():
                     return result
                 if UserMethods.get_user_by_id(user_id).status_code == 200:
                     user = body.user.dict()
-                    user["hashed_password"] = PasswordJWT.get_password_hash(user["password"])
+                    user["hashed_password"] = EnvJWTSettings.get_password_hash(
+                        user["password"])
                     user.pop("password")
                     user["id"] = user_id
                     user = UserDBModel.parse_obj(user)
                     response_user = UserMethods.update_user(user)
-                    response_user = json.loads(response_user.body.decode('utf-8'))
+                    response_user = json.loads(
+                        response_user.body.decode('utf-8'))
                     response_user["access_token"] = token
                     return JSONResponse(
                         content=response_user
@@ -397,7 +404,7 @@ class UsersDBViews():
             else:
                 return JSONResponse(
                     status_code=403,
-                    content = {
+                    content={
                         'message': 'Access denied'
                     }
                 )

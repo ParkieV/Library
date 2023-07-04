@@ -1,19 +1,17 @@
 import json
-from fastapi import APIRouter, Path
-from typing import Annotated
+from fastapi import APIRouter
 from datetime import datetime
 from fastapi.responses import JSONResponse
 
-from backend.db.schema import BookGetDeleteModel, BookCreateUpdateModel, UserDBModel, UserHashedModel
-from backend.db.backends import BookMethods, UserMethods, BookQueryMethods, PasswordJWT
-from backend.db.schema import BookQueryModel, QueryGetDeleteModel, QueryCreateModel
-from backend.db.models import Books as BookDB
-from backend.db.models import Users as UserDB
-from backend.db.schema import UserGetDeleteModel, UserCreateUpdateModel
-from backend.user.schema import UserAuthModel
+from backend.schemas.books_schemas import BookGetDeleteModel, BookCreateUpdateModel
+from backend.core.token_settings import EnvJWTSettings
+from backend.crud.usersCRUD import UserMethods
+from backend.crud.booksCRUD import BookMethods
+from backend.schemas.users_schemas import UserDBModel
+from backend.models.books import Books
 
 
-class BooksViews():
+class BooksDBViews():
 
     books_router = APIRouter(prefix="/books")
 
@@ -21,7 +19,7 @@ class BooksViews():
     def get_book(
         book_id: int = 0,
         body: BookGetDeleteModel = None) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -54,7 +52,7 @@ class BooksViews():
     def update_book(
         book_id : int = 0,
         body: BookCreateUpdateModel = None) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -70,7 +68,7 @@ class BooksViews():
                 if result.status_code != 200:
                     return result
                 if BookMethods.get_book_by_id(book_id).status_code == 200:
-                    book_db = BookDB(**body.book.dict())
+                    book_db = Books(**body.book.dict())
                     book_db.id = book_id
                     response_book = BookMethods.update_book(book_db)
                     response_book = json.loads(response_book.body.decode('utf-8'))
@@ -95,7 +93,7 @@ class BooksViews():
 
     @books_router.put("/action")
     def create_book(body: BookCreateUpdateModel) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:
@@ -110,7 +108,7 @@ class BooksViews():
                 result = UserMethods.update_user(UserDBModel.parse_obj(client))
                 if result.status_code != 200:
                     return result
-                book = BookDB(**body.book.dict())
+                book = Books(**body.book.dict())
                 response_book = BookMethods.create_book(book)
                 response_book = json.loads(response_book.body.decode('utf-8'))
                 response_book["access_token"] = token
@@ -129,7 +127,7 @@ class BooksViews():
     def delete_book(
         book_id: int = 0,
         body: BookGetDeleteModel = None) -> JSONResponse:
-        auth_result = PasswordJWT.check_access_token(body.auth)
+        auth_result = EnvJWTSettings.check_access_token(body.auth)
         if auth_result.status_code != 200:
             return auth_result
         else:

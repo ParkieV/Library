@@ -2,14 +2,20 @@ import json
 
 from pydantic import EmailStr
 from datetime import timedelta, datetime
-from sqlalchemy import func
 
 from fastapi.responses import JSONResponse
 
-from backend.db.backends import UserMethods, BookMethods, BookQueryMethods, PasswordJWT
-from backend.db.schema import BookQueryModel, UserDBModel, BookDBModel
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import JWTSettings
+from backend.crud.usersCRUD import UserMethods
+from backend.crud.booksCRUD import BookMethods
+from backend.crud.bookQueryCRUD import BookQueryMethods
+from backend.schemas.book_query_schemas import BookQueryModel
+from backend.schemas.users_schemas import UserDBModel
+from backend.schemas.books_schemas import BookDBModel
+from backend.models.bookQuery import BookQuery
+from backend.models.books import Books
+from backend.models.users import Users
+from backend.core.security import PasswordJWT
+from backend.core.token_settings import EnvJWTSettings
 
 
 def reserve_book(user_id: int, book_id: int) -> JSONResponse:
@@ -131,7 +137,7 @@ def authenticate_user(email: EmailStr, password: str, id: int):
                 "details": "Uncorrect password"
             }
         )
-    jwt_settings = JWTSettings()
+    jwt_settings = EnvJWTSettings()
     access_token_expires = timedelta(minutes=int(jwt_settings.token_expire_minutes))
     user.access_token = PasswordJWT.create_access_token({"sub": user.email}, access_token_expires)
     user.time_token_create = datetime.now().isoformat()

@@ -1,40 +1,16 @@
-import json
+from sqlalchemy import text
 
-from sqlalchemy import create_engine, text, CursorResult
-from pydantic import EmailStr
-from typing import List, Annotated
-from datetime import datetime, timedelta, date, timezone
-from dateutil import parser
-from jose import JWTError, jwt
-from fastapi import Depends
-
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from backend.db.schema import UserDBModel, BookDBModel, AuthModel
-from backend.db.schema import TokenData
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import DBSettings, JWTSettings
+from backend.db.serializer import CursorResultDict
+from backend.models.books import Books
+from backend.schemas.books_schemas import BookDBModel
 
 
 class BookMethods():
-    def setUp(func) -> None:
-        def _wrapper(*args, **kwargs):
-            settings = DBSettings()
-            engine = create_engine(f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}")
-            session = Session(bind=engine)
-            kwargs['session'] = session
-            result = func(*args, **kwargs)
-            session.commit()
-            session.close()
-            return result
-        return _wrapper
     
-    @setUp
-    def search_book_by_title(book_title: str, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def search_book_by_title(book_title: str, session: Session, *args, **kwargs) -> JSONResponse:
         try: 
             query = text(
                 """
@@ -66,9 +42,7 @@ class BookMethods():
                 }
             )
     
-    @setUp
-    def get_book_by_title_authors(title: str, authors: str, *args, **kwargs) -> JSONResponse:
-        session = kwargs['session']
+    def get_book_by_title_authors(title: str, authors: str, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM books
@@ -90,9 +64,7 @@ class BookMethods():
                 }
             )
 
-    @setUp
-    def create_book(model: Books, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def create_book(model: Books, session: Session, *args, **kwargs) -> JSONResponse:
         try:
             session.add(model)
         except Exception as err:
@@ -108,9 +80,7 @@ class BookMethods():
             }
         )
 
-    @setUp
-    def get_book_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs['session']
+    def get_book_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM books
@@ -131,9 +101,7 @@ class BookMethods():
                 }
             )
 
-    @setUp
-    def delete_book_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs['session']
+    def delete_book_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         book = BookMethods.get_book_by_id(id)
         if book.status_code != 200:
             return book
@@ -158,9 +126,7 @@ class BookMethods():
                 }
             )
 
-    @setUp
-    def update_book(model: BookDBModel, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def update_book(model: BookDBModel, session: Session, *args, **kwargs) -> JSONResponse:
         try:
             print(model)
             query = text("""
@@ -192,9 +158,7 @@ class BookMethods():
                 }
             )
 
-    @setUp
-    def get_database(offset: int = 0, limit: int = 15, *args, **kwargs) ->JSONResponse:
-        session = kwargs["session"]
+    def get_database(session: Session, offset: int = 0, limit: int = 15, *args, **kwargs) ->JSONResponse:
         if limit == 0:
             try: 
                 query = text(

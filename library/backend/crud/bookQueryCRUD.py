@@ -1,40 +1,16 @@
-import json
 
-from sqlalchemy import create_engine, text, CursorResult
-from pydantic import EmailStr
-from typing import List, Annotated
-from datetime import datetime, timedelta, date, timezone
-from dateutil import parser
-from jose import JWTError, jwt
-from fastapi import Depends
+from sqlalchemy import text
 
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from backend.db.schema import UserDBModel, BookDBModel, AuthModel
-from backend.db.schema import TokenData
-from backend.db.models import Users, Books, BookQuery
-from backend.db.settings import DBSettings, JWTSettings
+from backend.db.serializer import CursorResultDict
+from backend.models.bookQuery import BookQuery
 
 
 class BookQueryMethods():
-    def setUp(func) -> None:
-        def _wrapper(*args, **kwargs):
-            settings = DBSettings()
-            engine = create_engine(f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}")
-            session = Session(bind=engine)
-            kwargs['session'] = session
-            result = func(*args, **kwargs)
-            session.commit()
-            session.close()
-            return result
-        return _wrapper
 
-    @setUp
-    def get_bookQuery_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def get_bookQuery_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM book_queries
@@ -55,9 +31,7 @@ class BookQueryMethods():
                 }
             )
 
-    @setUp
-    def get_bookQuery_by_user_book(user_id: int, book_id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def get_bookQuery_by_user_book(user_id: int, book_id: int, session: Session, *args, **kwargs) -> JSONResponse:
         query = text("""
             SELECT *
             FROM book_queries
@@ -79,9 +53,7 @@ class BookQueryMethods():
                 }
             )
 
-    @setUp
-    def create_bookQuery(model: BookQuery, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def create_bookQuery(model: BookQuery, session: Session, *args, **kwargs) -> JSONResponse:
         try:
             session.add(model)
         except Exception as err:
@@ -97,9 +69,7 @@ class BookQueryMethods():
             }
         )
 
-    @setUp
-    def delete_bookQuery_by_id(id: int, *args, **kwargs) -> JSONResponse:
-        session = kwargs["session"]
+    def delete_bookQuery_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
         query = BookQueryMethods.get_bookQuery_by_id(id)
         if query.status_code != 200:
             return query

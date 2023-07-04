@@ -4,14 +4,14 @@ from sqlalchemy import types
 
 from typing import Optional
 
+from backend.core.db_settings import Base
+from backend.models.books import Books
 
-
-Base = orm.declarative_base()
 
 class Users(Base):
     __tablename__ = "users"
 
-    id: orm.Mapped[int] = orm.mapped_column(Integer, primary_key=True, index=True, autoincrement=True, init=False, sort_order=-9999, use_existing_column=False)
+    id: orm.Mapped[int] = orm.mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     name: orm.Mapped[str] = orm.mapped_column(String(50))
     surname: orm.Mapped[str] = orm.mapped_column(String(50))
     last_name: orm.Mapped[Optional[str]] = orm.mapped_column(String(50), )
@@ -21,4 +21,4 @@ class Users(Base):
     book_id_taken: orm.Mapped[Optional[int]] = orm.mapped_column(Integer, ForeignKey("books.id"))
     reserved_book_id: orm.Mapped[Optional[int]] = orm.mapped_column(Integer, ForeignKey("books.id"))
     access_token: orm.Mapped[Optional[str]] = orm.mapped_column(String(128), default=None)
-    time_token_create: orm.Mapped[Optional[types.DateTime()]] = Column(DateTime(timezone=True), default=None)
+    time_token_create: orm.Mapped[Optional[types.DateTime]] = Column(DateTime(timezone=True), default=None)

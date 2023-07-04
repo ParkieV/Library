@@ -5,9 +5,13 @@ from pydantic import EmailStr
 
 from fastapi.responses import JSONResponse
 
-from backend.db.backends import UserMethods, BookMethods, BookQueryMethods
-from backend.db.models import Books, Users
-from backend.db.schema import UserDBModel, BookDBModel
+from backend.crud.usersCRUD import UserMethods
+from backend.crud.booksCRUD import BookMethods
+from backend.crud.bookQueryCRUD import BookQueryMethods
+from backend.schemas.users_schemas import UserDBModel
+from backend.schemas.books_schemas import BookDBModel
+from backend.models.users import Users
+from backend.models.books import Books
 
 
 def accept_reserve_book(email: EmailStr, user_id: int, book_id: int) -> JSONResponse:
