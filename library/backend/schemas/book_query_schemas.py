@@ -9,6 +9,9 @@ class BookQueryModel(BaseModel):
     type_order: str
     type_query: str
 
+class BookQueryDBModel(BookQueryModel):
+    id: int
+
     class Config:
         orm_mode = True
 

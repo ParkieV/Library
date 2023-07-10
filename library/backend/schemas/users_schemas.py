@@ -23,6 +23,9 @@ class UserModel(BaseUserModel):
 class UserHashedModel(BaseUserModel):
     hashed_password: str
 
+    class Config:
+        orm_mode = True
+
 
 class UserDBModel(UserHashedModel):
     id: int
@@ -54,6 +57,8 @@ class ButtonData(BaseModel):
     user_id: int
     book_id: int
 
+class BigButtonData(ButtonData):
+    email: EmailStr
 
 class ButtonModel(BaseModel):
     auth: BaseAuthToken

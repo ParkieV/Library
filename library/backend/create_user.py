@@ -1,20 +1,18 @@
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models.users import Users
-from backend.core.security import PasswordJWT
+from backend.schemas.users_schemas import UserHashedModel
 from backend.crud.usersCRUD import UserMethods
 from backend.core.db_settings import DB_ENGINE
+from backend.methods.token_methods import PasswordJWT
 
 
-def create_first_user(*args, **kwargs):
+async def create_first_user(session: AsyncSession = AsyncSession(DB_ENGINE, expire_on_commit=False)):
     
-    user = Users(
+    user = UserHashedModel(
         name="Иван",
         surname="Иванов",
         email="example123@example.ru",
-        hashed_password=PasswordJWT.get_password_hash("Qwerty123."),
         user_type="Admin",
+        hashed_password=PasswordJWT.get_password_hash("Qwerty123."),
     )
-    Session = sessionmaker(bind=DB_ENGINE)
-    session = Session()
-    UserMethods.create_user(user, session)
+    return await UserMethods.create_user(session, user)

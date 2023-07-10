@@ -4,7 +4,7 @@ from backend.schemas.tokens_schemas import BaseAuthToken
 
 
 class BookModel(BaseModel):
-    title: str
+    name: str
     authors: str
     user_id_taken: int | None = None
     user_reserved_id: int | None = None

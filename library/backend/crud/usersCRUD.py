@@ -1,163 +1,135 @@
-import json
-
-from sqlalchemy import text
+from typing import List
+from sqlalchemy import text, select
 from pydantic import EmailStr
 
-from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
+from sqlalchemy.exc import StatementError
 
-from backend.schemas.users_schemas import UserDBModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.schemas.users_schemas import UserDBModel, UserHashedModel
 from backend.schemas.tokens_schemas import AuthModel
+from backend.schemas.error_schemas import ErrorModel
 from backend.models.users import Users
-from backend.db.serializer import CursorResultDict, json_serial
+
 
 
 class UserMethods():
-    def get_user_by_email(email: EmailStr, session: Session, *args, **kwargs) -> JSONResponse:
-        query = text("""
-            SELECT *
-            FROM users
-            WHERE email = :user_email;
-        """)
-        result = session.execute(query, {"user_email": email}).mappings().first()
-        response = CursorResultDict(result)
-        response["time_token_create"] = json.dumps(response["time_token_create"], default=json_serial)
-        if result:
-            return JSONResponse(
-                status_code = 200,
-                content={
-                    "user": response
-                }
-                
-            )
-        return JSONResponse(
-            status_code = 500,
-            content={
-                "details": 'User not found.'
-            }
-            
-        )
-    
-    def create_user(model: Users, session: Session, *args, **kwargs) -> JSONResponse:
-        try:
-            session.add(model)
-            session.commit()
-            session.close()
-        except Exception as err:
-            print(str(err))
-            return JSONResponse(
-                status_code = 500,
-                content={
-                  "details": str(err) + ". Operation is unavailable.",  
-                }
-            )
-        return JSONResponse(
-            content={
-                "details": 'OK'
-            }
-        )
 
-    def get_user_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
-        query = text("""
-            SELECT *
-            FROM users
-            WHERE id = :user_id;
-        """)
-        result = session.execute(query, {"user_id": id}).mappings().first()
-        response = CursorResultDict(result)
-        response["time_token_create"] = json.dumps(response["time_token_create"], default=json_serial)
-        user_model = {
-            "id": response["id"],
-        "name": response["name"],
-        "surname": response["surname"],
-        "last_name": response["last_name"],
-        "email": response["email"],
-        "hashed_password": response["hashed_password"],
-        "user_type": response["user_type"],
-        "book_id_taken": response["book_id_taken"],
-        "reserved_book_id": response["reserved_book_id"],
-        }
-        if result:
-            return JSONResponse(
-                content={
-                        "user": user_model
-                }
-            )
-        else:
-            return JSONResponse(
-                status_code = 404,
-                content = {
-                "details": 'User not found'
-                }
-            )
-
-    def update_user(model: UserDBModel, session: Session, *args, **kwargs) -> JSONResponse:
+    async def get_user_by_email(session: AsyncSession, email: EmailStr) -> UserDBModel | ErrorModel:
         try:
             query = text("""
-                UPDATE users
-                SET (name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password) = 
-                (:name, :surname, :last_name, :email, :user_type, :book_id_taken, :reserved_book_id, :access_token, :time_token_create, :hashed_password)
-                WHERE id = :id;
-            """)
-            session.execute(query, {
-                "name": model.name,
-                "surname": model.surname,
-                "last_name": model.last_name,
-                "email": model.email,
-                "user_type": model.user_type,
-                "book_id_taken": model.book_id_taken,
-                "reserved_book_id": model.reserved_book_id,
-                "access_token": model.access_token,
-                "time_token_create": model.time_token_create,
-                "hashed_password": model.hashed_password,
-                "id": model.id
-            })
-            return JSONResponse(
-                content={
-                    "details": "OK"
-                }
-            )
+                         SELECT *
+                         FROM users
+                         WHERE email = :user_email;
+                    """)
+            result = await session.execute(query, {"user_email": email})
+            result = result.one_or_none()
+            if result:
+                raise ValueError("User not found.")
+            else:                
+                user = result
+                await session.commit()
+                return UserDBModel.from_orm(user)
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
         except Exception as err:
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "details": str(err) + ". Operation is unavailable.",
-                }
-            )
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
 
-    def delete_user_by_id(id: int, session: Session, *args, **kwargs) -> JSONResponse:
-        user = UserMethods.get_user_by_id(id)
-        if user.status_code != 200:
-            return user
+    async def create_user(session: AsyncSession, user_schema: UserHashedModel) -> UserHashedModel | ErrorModel:
+        try:
+            user_model = Users(**user_schema.dict())
+            session.add(user_model)
+            await session.commit()
+            return user_schema
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
+        except Exception as err:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
+
+    async def get_user_by_id(session: AsyncSession, id: int) -> UserDBModel | ErrorModel:
         try:
             query = text("""
-                DELETE FROM users
-                WHERE id = :id;
-            """)
-            session.execute(query, {
-                "id": id
-            })
-            return JSONResponse(
-                content={
-                    "details": 'OK'
-                }
-            )
+                         SELECT *
+                         FROM users
+                         WHERE id = :user_id;                    
+                    """)
+            result = await session.execute(query, {"user_id": id})
+            result = result.one_or_none()
+            if result:
+                user = result
+                await session.commit()
+                return UserDBModel.from_orm(user)
+            else:
+                raise ValueError("User not found.")
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
         except Exception as err:
-            return JSONResponse(
-                status_code = 500,
-                content={
-                    "details": str(err) + " . Operation is unavailable."
-                }
-            )
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
 
-    def get_user_by_email_password(model: AuthModel, session: Session, *args, **kwargs) -> JSONResponse:
-        if not UserMethods._auth_validation(model.email, model.password):
-            return JSONResponse(
-                status_code = 400,
-                content = {
-                    "details": "Invalid email or password"
-                }
-            )
+    async def update_user(session: AsyncSession, user: UserDBModel) -> UserHashedModel | ErrorModel:
+        try:
+            query = text("""
+                         UPDATE users
+                         SET (name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password) = 
+                         (:name, :surname, :last_name, :email, :user_type, :book_id_taken, :reserved_book_id, :access_token, :time_token_create, :hashed_password)
+                         WHERE id = :id
+                         RETURNING name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password;
+                """)
+            result = await session.execute(query, user.dict())
+            result = result.one_or_none()
+            if result:
+                user = result
+                await session.commit()
+                return UserHashedModel.from_orm(user)
+            else:
+                raise ValueError("User hasn't updated")
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
+        except Exception as err:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
+
+    async def delete_user_by_id(session: AsyncSession, id: int) -> UserHashedModel | ErrorModel:
+        try:
+            query = text("""
+                         DELETE FROM users
+                         WHERE id = :id
+                         RETURNING name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password;                           
+                    """)
+            result = await session.execute(query, {"id": id})
+            result = result.one_or_none()
+            if result:
+                print(result)
+                deleted_user = result
+                await session.commit()
+                return UserHashedModel.from_orm(deleted_user)
+            else:
+                raise ValueError("User hasn't deleted.")
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
+        except Exception as err:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
+
+    async def get_user_by_email_password(session: AsyncSession, auth_schema: AuthModel) -> UserHashedModel | ErrorModel:
         try:
             query = text(
                 """
@@ -166,73 +138,34 @@ class UserMethods():
                 WHERE email = :user_email
                 AND password = :user_password;
             """)
-            result = session.execute(query, 
-                                     {"user_email": model.email, "user_password": model.password}).mappings().all()
-            if len(result) != 1:
-                return JSONResponse(
-                    status_code = 404,
-                    content = {
-                    "details": "User not found"
-                    }
-                )
-            result = result[0]
-            return JSONResponse(
-                content={
-                    "user": CursorResultDict(result)
-                }
-            )
+            result = await session.execute(query, auth_schema.dict())
+            result = result.one_or_none()
+            if result:
+                raise ValueError("User not found.")
+            else:
+                user = result
+                session.commit()
+                return UserHashedModel.from_orm(user)
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
         except Exception as err:
-            return JSONResponse(
-                status_code = 500,
-                content = {
-                    "details": str(err) + ". Operation is unavailable"
-                }
-            )
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))
 
-    def get_database(session: Session, offset: int = 0, limit: int = 15, *args, **kwargs) ->JSONResponse:
-        if limit == 0:
-            try: 
-                query = text(
-                    """
-                    SELECT *
-                    FROM users;
-                """)
-                result = session.execute(query).mappings().all()
-                result_dict = CursorResultDict(result)
-                return JSONResponse(
-                    content={
-                        'body': result_dict
-                    }
-                )
-            except Exception as err:
-                return JSONResponse(
-                    status_code= 500,
-                    content={
-                      "details": str(err) + " . Operation is unavailable.",  
-                    }
-                )
-        else:
-            try: 
-                query = text(
-                    """
-                    SELECT *
-                    FROM users
-                    LIMIT :limit
-                    OFFSET :offset;
-                """)
-                result = session.execute(query, {
-                    "limit": limit,
-                    "offset": offset}).mappings().all()
-                result_dict = CursorResultDict(result)
-                return JSONResponse(
-                    content={
-                        'body': result_dict
-                    }
-                )
-            except Exception as err:
-                return JSONResponse(
-                    status_code= 500,
-                    content={
-                      "details": str(err) + " . Operation is unavailable.",  
-                    }
-                )
+    async def get_users(session: AsyncSession, db_offset: int | None = None, db_limit: int | None = None) -> List[UserHashedModel] | ErrorModel:
+        try:
+            result = await session.execute(select(Users).offset(db_offset).limit(db_limit))
+            result = result.all()
+            users = [UserHashedModel.from_orm(row) for row in result]
+            return users
+        except StatementError as database_error:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(database_error).__name__),
+                              error_details=database_error.orig)
+        except Exception as err:
+            await session.rollback()
+            return ErrorModel(error_type=str(type(err).__name__),
+                              error_details=str(err))

@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine
 from pydantic import BaseSettings
-from sqlalchemy.orm import declarative_base, Session
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 
 class EnvDBSettings(BaseSettings):
@@ -16,13 +16,14 @@ class EnvDBSettings(BaseSettings):
 
 
 settings = EnvDBSettings()
-DATABASE_URL = f"postgresql+psycopg2://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}"
-DB_ENGINE = create_engine(DATABASE_URL)
+DATABASE_URL = f"postgresql+asyncpg://{settings.username}:{settings.password}@{settings.host}:{settings.port}/{settings.database}"
+DB_ENGINE = create_async_engine(DATABASE_URL)
 Base = declarative_base()
 
-def initialization_database():
-    Base.metadata.create_all(bind=DB_ENGINE)
+async def initialization_database():
+    async with DB_ENGINE.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-def get_session():
-    with Session(DB_ENGINE) as session:
+async def get_async_session():
+    async with AsyncSession(DB_ENGINE, expire_on_commit=False) as session:
         yield session
