@@ -5,11 +5,13 @@ from fastapi import FastAPI
 
 from starlette.middleware.cors import CORSMiddleware
 
-from app.create_user import create_first_user
+from app.core.settings import Base
 
-from app.core.db_conn import check_connection, initialization_database
+from app.core.db_conn import check_connection
 
 from app.routes.api import api_router
+
+from app.create_user import create_first_user
 
 
 app = FastAPI()
@@ -28,7 +30,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
 #    await initialization_database()
-#    await create_first_user()
+    await create_first_user()
     await check_connection()
 
 
