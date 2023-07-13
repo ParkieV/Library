@@ -2,17 +2,14 @@ from datetime import datetime, timedelta, timezone
 from pydantic import EmailStr
 from fastapi import HTTPException, status
 
-from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.users import UserMethods
-from app.crud.books import BookMethods
-from app.crud.book_query import BookQueryMethods
+from app.crud import users as UserMethods
+from app.crud import books as BookMethods
+from app.crud import book_query as BookQueryMethods
 
 from app.schemas.book_query import BookQueryDBModel
-
-from app.methods.error_handler import sql_validation_error
 
 
 async def accept_reserve_book(email: EmailStr, user_id: int, book_id: int, session: AsyncSession) -> BookQueryDBModel:
@@ -37,6 +34,7 @@ async def accept_reserve_book(email: EmailStr, user_id: int, book_id: int, sessi
 
     await UserMethods.update_user(session, user)
     await BookMethods.create_book(session, book)
+    
     return await BookQueryMethods.delete_book_query_by_id(session, query.id)
 
 
@@ -65,6 +63,7 @@ async def accept_take_book(email: EmailStr, user_id: int, book_id: int, session:
 
     await UserMethods.update_user(session, user)
     await BookMethods.create_book(session, book)
+    
     return await BookQueryMethods.delete_book_query_by_id(session, query.id)
 
 
@@ -92,4 +91,5 @@ async def cancel_take_book(email: EmailStr, user_id: int, book_id: int, session:
 
         await UserMethods.update_user(session, user)
         await BookMethods.create_book(session, book)
+        
         return await BookQueryMethods.delete_book_query_by_id(session, query.id)

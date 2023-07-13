@@ -1,12 +1,9 @@
-
-from typing import Union
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.users import UserMethods
+from app.crud import users as UserMethods
 
 from app.schemas.tokens import BigButtonData
 from app.schemas.book_query import BookQueryDBModel
@@ -15,7 +12,6 @@ from app.methods.librarian import accept_reserve_book, accept_take_book, cancel_
 
 from app.core.db_conn import get_async_session
 
-from app.methods.error_handler import sql_validation_error
 
 routes = APIRouter(prefix="/librarian")
 

@@ -1,16 +1,12 @@
-from fastapi import APIRouter, Depends, status, HTTPException
-
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.books import BookModel, BookDBModel
 
-from app.crud.books import BookMethods
+from app.crud import books as BookMethods
 
 from app.core.db_conn import get_async_session
-
-from app.methods.error_handler import sql_validation_error
 
 
 routes = APIRouter(prefix="/books")
