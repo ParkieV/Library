@@ -1,56 +1,30 @@
-from fastapi import APIRouter, Depends
-from typing import Union
+from fastapi import APIRouter, Depends, status, HTTPException
 
-from sqlalchemy.exc import StatementError
+from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.book_query import BookQueryDBModel, BookQueryModel
-from app.schemas.error import ErrorModel
+
 from app.crud.book_query import BookQueryMethods
+
 from app.core.db_conn import get_async_session
 
+from app.methods.error_handler import sql_validation_error
 
 routes = APIRouter(prefix="/queries")
 
 
-@routes.get("/action", response_model=Union[BookQueryDBModel, ErrorModel])
+@routes.get("/action", response_model=BookQueryDBModel)
 async def get_query(query_id: int = 0, session: AsyncSession = Depends(get_async_session)):
-    try:
-        return await BookQueryMethods.get_book_query_by_id(session, query_id)
-    except StatementError as database_error:
-        
-        return ErrorModel(error_type=str(type(database_error).__name__),
-                          error_details=database_error.orig)
-    except Exception as err:
-        
-        return ErrorModel(error_type=str(type(err).__name__),
-                          error_details=str(err))
+    return await BookQueryMethods.get_book_query_by_id(session, query_id)
 
 
-@routes.put("/action", response_model=Union[BookQueryModel, ErrorModel])
+@routes.put("/action", response_model=BookQueryModel)
 async def create_query(body: BookQueryModel, session: AsyncSession = Depends(get_async_session)):
-    try:
-        return await BookQueryMethods.create_book_query(session, body)
-    except StatementError as database_error:
-        
-        return ErrorModel(error_type=str(type(database_error).__name__),
-                          error_details=database_error.orig)
-    except Exception as err:
-        
-        return ErrorModel(error_type=str(type(err).__name__),
-                          error_details=str(err))
+    return await BookQueryMethods.create_book_query(session, body)
 
 
-@routes.delete("/action", response_model=Union[BookQueryDBModel, ErrorModel])
+@routes.delete("/action", response_model=BookQueryDBModel)
 async def delete_query(query_id: int, session: AsyncSession = Depends(get_async_session)):
-    try:
-        return await BookQueryMethods.delete_book_query_by_id(session, query_id)
-    except StatementError as database_error:
-        
-        return ErrorModel(error_type=str(type(database_error).__name__),
-                          error_details=database_error.orig)
-    except Exception as err:
-        
-        return ErrorModel(error_type=str(type(err).__name__),
-                          error_details=str(err))
+    return await BookQueryMethods.delete_book_query_by_id(session, query_id)
