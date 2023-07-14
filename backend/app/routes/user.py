@@ -12,7 +12,7 @@ from app.core.security import get_password_hash
 
 from app.core.db_conn import get_async_session
 
-from app.crud import users as UserMethods
+from app.crud import users
 
 from app.methods.user import authenticate_user, take_book, cancel_take_book, reserve_book, cancel_reserve_book
 
@@ -55,13 +55,13 @@ user_db_routes = APIRouter(prefix="/users")
 
 @user_db_routes.get("/action", response_model=UserDBModel)
 async def get_user(user_id: int = 0, session: AsyncSession = Depends(get_async_session)):
-    result = await UserMethods.get_user_by_id(session, user_id)
+    result = await users.get_user_by_id(session, user_id)
     return result
 
 
 @user_db_routes.delete("/action", response_model=UserHashedModel)
 async def delete_user(user_id: int = 0, session: AsyncSession = Depends(get_async_session)):
-    return await UserMethods.delete_user_by_id(session, user_id)
+    return await users.delete_user_by_id(session, user_id)
 
 
 @user_db_routes.put("/action", response_model=UserHashedModel)
@@ -78,7 +78,7 @@ async def create_user(body: UserModel, session: AsyncSession = Depends(get_async
         time_token_create=body.time_token_create,
         hashed_password=get_password_hash(body.password))
     
-    return await UserMethods.create_user(session, current_schema)
+    return await users.create_user(session, current_schema)
 
 
 @user_db_routes.post("/action", response_model=UserHashedModel)
@@ -95,4 +95,4 @@ async def update_user(body: UserModel, user_id: int = 0, session: AsyncSession =
                                  time_token_create=body.time_token_create,
                                  hashed_password=get_password_hash(body.password))
     
-    return await UserMethods.update_user(session, current_schema)
+    return await users.update_user(session, current_schema)

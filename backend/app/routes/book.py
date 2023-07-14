@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.books import BookModel, BookDBModel
 
-from app.crud import books as BookMethods
+from app.crud import books
 
 from app.core.db_conn import get_async_session
 
@@ -14,7 +14,7 @@ routes = APIRouter(prefix="/books")
 
 @routes.get("/action", response_model=BookDBModel)
 async def get_book(book_id: int = 0, session: AsyncSession = Depends(get_async_session)):
-    return await BookMethods.get_book_by_id(session, book_id)
+    return await books.get_book_by_id(session, book_id)
 
 
 @routes.post("/action", response_model=BookDBModel)
@@ -28,14 +28,14 @@ async def update_book(body: BookModel, book_id: int = 0, session: AsyncSession =
                                  date_start_use=body.date_finish_use,
                                  date_finish_use=body.date_finish_use)
 
-    return await BookMethods.update_book(session, current_schema)
+    return await books.update_book(session, current_schema)
 
 
 @routes.put("/action", response_model=BookModel)
 async def create_book(body: BookModel, session: AsyncSession = Depends(get_async_session)):
-    return await BookMethods.create_book(session, body)
+    return await books.create_book(session, body)
 
 
 @routes.delete("/action", response_model=BookDBModel)
 async def delete_book(book_id: int = 0, session: AsyncSession = Depends(get_async_session)):
-    return await BookMethods.delete_book_by_id(session, book_id)
+    return await books.delete_book_by_id(session, book_id)

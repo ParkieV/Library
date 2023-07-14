@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import users as UserMethods
+from app.crud import users
 
 from app.schemas.tokens import BigButtonData
 from app.schemas.book_query import BookQueryDBModel
@@ -18,7 +18,7 @@ routes = APIRouter(prefix="/librarian")
 
 @routes.post("/accept_reserve", response_model=BookQueryDBModel)
 async def accept_reserve_query(body: BigButtonData, session: AsyncSession = Depends(get_async_session)):
-    user = await UserMethods.get_user_by_id(body.user_id)
+    user = await users.get_user_by_id(body.user_id)
     match user:
         case user if user.user_type != "Librarian":
             raise HTTPException(
@@ -29,7 +29,7 @@ async def accept_reserve_query(body: BigButtonData, session: AsyncSession = Depe
 
 @routes.post("/accept_take", response_model=BookQueryDBModel)
 async def accept_take_query(body: BigButtonData, session: AsyncSession = Depends(get_async_session)):
-    user = await UserMethods.get_user_by_id(body.user_id)
+    user = await users.get_user_by_id(body.user_id)
     match user:
         case user if user.user_type != "Librarian":
             raise HTTPException(
@@ -40,7 +40,7 @@ async def accept_take_query(body: BigButtonData, session: AsyncSession = Depends
 
 @routes.post("/cancel_take", response_model=BookQueryDBModel)
 async def cancel_take_query(body: BigButtonData, session: AsyncSession = Depends(get_async_session)):
-    user = await UserMethods.get_user_by_id(body.user_id)
+    user = await users.get_user_by_id(body.user_id)
     match user:
         case user if user.user_type != "Librarian":
             raise HTTPException(
