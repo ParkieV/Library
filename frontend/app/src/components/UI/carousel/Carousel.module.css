@@ -1,0 +1,11 @@
+.carousel {
+  display: flex;
+  margin-top: 30px;
+  justify-content: space-between;
+}
+
+.cardList {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}

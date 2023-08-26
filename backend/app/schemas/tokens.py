@@ -1,37 +1,16 @@
-from pydantic import BaseModel, EmailStr
+from datetime import datetime
+
+from pydantic import BaseModel, EmailStr, Field
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class TokenPayload(BaseModel):
+	sub: EmailStr = Field(default=None, description="Почта")
+	exp: datetime | float = Field(default=None, description="Дата истечения токена")
 
-    class Config:
-        orm_mode = True
+class RefreshTokenModel(BaseModel):
+	refresh_token: str
 
-
-class TokenData(BaseModel):
-    email: EmailStr | None = None
-
-    class Config:
-        orm_mode = True
+class TokensModel(RefreshTokenModel):
+	access_token: str
 
 
-class BaseAuthToken(Token, TokenData):
-    pass
-
-
-class AuthModel(BaseModel):
-    email: EmailStr
-    password: str
-
-    class Config:
-        orm_mode = True
-
-
-class ButtonData(BaseModel):
-    user_id: int
-    book_id: int
-
-
-class BigButtonData(ButtonData):
-    email: EmailStr
