@@ -40,7 +40,7 @@ async def get_user_by_id(session: AsyncSession, id: int) -> UserDBModel:
 	query = text("""
 					 SELECT *
 					 FROM users
-					 WHERE id = :user_id;
+					 WHERE userId = :user_id;
 				""")
 	result = await session.execute(query, {"user_id": id})
 
@@ -57,7 +57,7 @@ async def update_user(session: AsyncSession, user: UserDBModel) -> UserHashedMod
 					UPDATE users
 					SET (name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password) =
 					(:name, :surname, :last_name, :email, :user_type, :book_id_taken, :reserved_book_id, :access_token, :time_token_create, :hashed_password)
-					WHERE id = :id
+					WHERE userId = :id
 					RETURNING name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password;
 			""")
 
@@ -74,7 +74,7 @@ async def update_user(session: AsyncSession, user: UserDBModel) -> UserHashedMod
 async def delete_user_by_id(session: AsyncSession, id: int) -> UserHashedModel:
 	query = text("""
 					 DELETE FROM users
-					 WHERE id = :id
+					 WHERE userId = :id
 					 RETURNING name, surname, last_name, email, user_type, book_id_taken, reserved_book_id, access_token, time_token_create, hashed_password;
 				""")
 

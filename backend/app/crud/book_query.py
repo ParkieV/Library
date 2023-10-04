@@ -6,6 +6,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.book_query import BookQuery
+from app.models.book_status import BookStatus  # noqa: F401
 from app.schemas.book_query import BookQueryDBModel, BookQueryModel
 
 

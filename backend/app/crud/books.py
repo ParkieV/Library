@@ -37,7 +37,7 @@ async def get_book_by_id(session: AsyncSession, book_id: int) -> BookDBModel:
 	query = text("""
 			SELECT *
 			FROM books
-			WHERE id = :id;
+			WHERE bookId = :id;
 		""")
 
 	result = await session.execute(query, {"id": book_id})
@@ -54,7 +54,7 @@ async def get_book_by_id(session: AsyncSession, book_id: int) -> BookDBModel:
 async def delete_book_by_id(session: AsyncSession, book_id: int) -> BookDBModel:
 	query = text("""
 					 DELETE FROM books
-					 WHERE id = :id
+					 WHERE bookId = :id
 					 RETURNING *;
 				""")
 
@@ -74,7 +74,7 @@ async def update_book(session: AsyncSession, book_schema: BookDBModel) -> BookDB
 						 UPDATE books
 						 SET (name, authors, user_id_taken, user_reserved_id, date_start_reserve, date_start_use, date_finish_use) =
 						 (:name, :authors, :user_id_taken, :user_reserved_id, :date_start_reserve, :date_start_use, :date_finish_use)
-						 WHERE id = :id
+						 WHERE bookId = :id
 						 RETURNING *;
 			""")
 
@@ -94,5 +94,8 @@ async def get_books(session: AsyncSession, offset_db: int | None = None,
 	result = await session.execute(
 	select(Books).offset(offset_db).limit(limit_db))
 	result = result.all()
-	users = [BookDBModel.from_orm(row) for row in result]
+	users = [BookDBModel.from_orm(row[0]) for row in result]
 	return users
+
+async def get_new_books(session: AsyncSession, limit_db: int | None) -> List[BookDBModel] | None:
+	await session.execute(select(Books).order_by(desc(Books.book_created_at)).limit(15).inter)

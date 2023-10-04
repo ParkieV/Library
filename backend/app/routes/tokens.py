@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db_conn import get_async_session
@@ -19,10 +20,10 @@ async def login(data: loginData, session: AsyncSession = Depends(get_async_sessi
 
 	user_response = await get_user_by_email(session, data.email)
 	if not user_response:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Uncorrect email")
 
 	if not verify_password(data.password, user_response.hashed_password):
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Uncorrect")
 
 	payload = TokenPayload(
 		sub=data.email,
@@ -38,17 +39,17 @@ async def login(data: loginData, session: AsyncSession = Depends(get_async_sessi
 async def refresh_tokens(refresh_token: RefreshTokenModel, session = Depends(get_async_session)) -> TokensModel:
 
 	if not (payload := decode_token(refresh_token.refresh_token)):
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Payload is none")
+		raise JWTError
 	print(payload)
 	if not (payload.sub):
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Uncorrect email")
+		raise JWTError
 
 	if not payload.exp:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Exp is none")
+		raise JWTError
 
 	user_response = await get_user_by_email(session, payload.sub)
 	if not user_response:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+		raise JWTError
 
 	new_payload = TokenPayload(
 		sub=user_response.email,

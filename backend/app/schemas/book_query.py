@@ -2,21 +2,21 @@ from pydantic import BaseModel, EmailStr
 
 
 class BookQueryModel(BaseModel):
-	user_id: int
-	book_id: int
-	type_order: str
-	type_query: str
+	userID: int
+	bookID: int
+	order_type: str
+	action_type: str
 
 
 class BookQueryDBModel(BookQueryModel):
-	id: int
+	queryID: int
 
 	class Config:
 		orm_mode = True
 
 class QueryActionModel(BaseModel):
-	user_id: int
-	book_id: int
+	userID: int
+	bookID: int
 
 class UserQueryActionModel(QueryActionModel):
 	email: EmailStr

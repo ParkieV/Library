@@ -2,9 +2,8 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.core.settings import Base  # noqa: F401
-
 from app.core.db_conn import check_connection
+from app.core.settings import DB_ENGINE, Base  # noqa: F401
 from app.routes.api import api_router
 
 app = FastAPI()
